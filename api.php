@@ -1,3 +1,4 @@
+
 <?php
 require_once __DIR__ . '/config.php';
 
@@ -161,6 +162,63 @@ function mandatory_bridge_days(int $year, int $endYear): array
 
 /*
 |--------------------------------------------------------------------------
+| Nederlandse feestdagen
+|--------------------------------------------------------------------------
+*/
+
+function dutch_holidays(int $year, int $endYear): array
+{
+    $all = [];
+
+    for ($y = $year; $y <= $endYear; $y++) {
+
+        $easter = new DateTimeImmutable('@' . easter_date($y));
+
+        $easter = $easter->setTimezone(
+            new DateTimeZone('Europe/Amsterdam')
+        );
+
+        $add = function (
+            DateTimeImmutable $d,
+            string $name
+        ) use (&$all) {
+            $all[$d->format('Y-m-d')] = $name;
+        };
+
+        $add(new DateTimeImmutable("$y-01-01"), 'Nieuwjaarsdag');
+        $add(new DateTimeImmutable("$y-04-27"), 'Koningsdag');
+
+        $add($easter->modify('-2 days'), 'Goede Vrijdag');
+        $add($easter, 'Eerste paasdag');
+        $add($easter->modify('+1 day'), 'Tweede paasdag');
+        $add($easter->modify('+39 days'), 'Hemelvaartsdag');
+        $add($easter->modify('+49 days'), 'Eerste pinksterdag');
+        $add($easter->modify('+50 days'), 'Tweede pinksterdag');
+
+        $add(new DateTimeImmutable("$y-12-25"), 'Eerste kerstdag');
+        $add(new DateTimeImmutable("$y-12-26"), 'Tweede kerstdag');
+
+        if ($y % 5 === 0) {
+            $add(new DateTimeImmutable("$y-05-05"), 'Bevrijdingsdag');
+        }
+
+        if (
+            (int)(new DateTimeImmutable("$y-04-27"))->format('N') === 7
+        ) {
+            unset($all["$y-04-27"]);
+
+            $add(
+                new DateTimeImmutable("$y-04-26"),
+                'Koningsdag'
+            );
+        }
+    }
+
+    return $all;
+}
+
+/*
+|--------------------------------------------------------------------------
 | GET: kalendergegevens en jaarsaldo ophalen
 |--------------------------------------------------------------------------
 */
@@ -173,10 +231,6 @@ if ($method === 'GET') {
     |--------------------------------------------------------------------------
     | Saldo van een specifiek kalenderjaar ophalen
     |--------------------------------------------------------------------------
-    |
-    | Voorbeeld:
-    | api.php?balance_year=2027
-    |
     */
 
     if (isset($_GET['balance_year'])) {
@@ -205,12 +259,14 @@ if ($method === 'GET') {
             'SELECT COALESCE(SUM(hours), 0)
              FROM leave_entries
              WHERE user_id = ?
+               AND booking_type = ?
                AND start_date >= ?
                AND start_date < ?'
         );
 
         $balanceStmt->execute([
             $user['id'],
+            'leave',
             $yearStart,
             $nextYearStart
         ]);
@@ -237,12 +293,14 @@ if ($method === 'GET') {
             'SELECT COUNT(*)
              FROM leave_entries
              WHERE user_id = ?
+               AND booking_type = ?
                AND start_date <= ?
                AND end_date >= ?'
         );
 
         $bridgeCheck->execute([
             $user['id'],
+            'leave',
             $bridgeDate,
             $bridgeDate
         ]);
@@ -332,6 +390,7 @@ if ($method === 'GET') {
                 l.end_time,
                 l.hours,
                 l.calculation_mode,
+                l.booking_type,
                 l.note,
                 u.name
             FROM leave_entries l
@@ -350,17 +409,42 @@ if ($method === 'GET') {
 
     $events = [];
 
-    // Gewone verlofboekingen.
+    /*
+    |--------------------------------------------------------------------------
+    | Verlof- en ziekteboekingen ophalen
+    |--------------------------------------------------------------------------
+    */
+
     foreach ($stmt->fetchAll() as $r) {
+
+        $isSick = $r['booking_type'] === 'sick';
+
+        if ($isSick) {
+
+            $title =
+                ($isAdmin ? $r['name'] . ' — ' : '') .
+                'Ziekte' .
+                ($r['note'] ? ' · ' . $r['note'] : '');
+
+            $backgroundColor = '#000000';
+            $borderColor = '#000000';
+
+        } else {
+
+            $title =
+                ($isAdmin ? $r['name'] . ' — ' : '') .
+                number_format((float)$r['hours'], 2, ',', '.') .
+                ' uur verlof' .
+                ($r['note'] ? ' · ' . $r['note'] : '');
+
+            $backgroundColor = '#dc2626';
+            $borderColor = '#b91c1c';
+        }
 
         $events[] = [
             'id' => (string)$r['id'],
 
-            'title' =>
-                ($isAdmin ? $r['name'] . ' — ' : '') .
-                number_format((float)$r['hours'], 2, ',', '.') .
-                ' uur verlof' .
-                ($r['note'] ? ' · ' . $r['note'] : ''),
+            'title' => $title,
 
             'start' => $r['start_date'],
 
@@ -370,12 +454,15 @@ if ($method === 'GET') {
 
             'allDay' => true,
 
-            'backgroundColor' => '#dc2626',
-            'borderColor' => '#b91c1c',
+            'backgroundColor' => $backgroundColor,
+            'borderColor' => $borderColor,
             'textColor' => '#ffffff',
 
+            // Deze class zorgt ervoor dat ziekteboekingen zwart worden.
+            'classNames' => $isSick ? ['sick-event'] : [],
+
             'extendedProps' => [
-                'entry_type' => 'leave',
+                'entry_type' => $isSick ? 'sick' : 'leave',
                 'user_id' => (int)$r['user_id'],
                 'hours' => (float)$r['hours'],
                 'mode' => $r['calculation_mode'],
@@ -709,7 +796,7 @@ if ($action === 'delete_credit') {
 
 /*
 |--------------------------------------------------------------------------
-| Gewoon verlof opslaan of aanpassen
+| Verlof of ziekte opslaan of aanpassen
 |--------------------------------------------------------------------------
 */
 
@@ -726,7 +813,13 @@ if ($action === 'save') {
     $endTime = (string)($input['end_time'] ?? '');
 
     $mode = (string)($input['calculation_mode'] ?? 'automatic');
+    $bookingType = (string)($input['booking_type'] ?? 'leave');
+
     $note = trim((string)($input['note'] ?? ''));
+
+    if (!in_array($bookingType, ['leave', 'sick'], true)) {
+        json_error('Ongeldig type boeking.');
+    }
 
     if (!valid_date($start) || !valid_date($end)) {
         json_error('Kies een geldige begin- en einddatum.');
@@ -767,7 +860,18 @@ if ($action === 'save') {
         json_error('Medewerker niet gevonden.');
     }
 
-    if ($mode === 'automatic') {
+    /*
+    |--------------------------------------------------------------------------
+    | Ziekte kost geen verlofuren
+    |--------------------------------------------------------------------------
+    */
+
+    if ($bookingType === 'sick') {
+
+        $hours = 0.0;
+        $mode = 'automatic';
+
+    } elseif ($mode === 'automatic') {
 
         try {
 
@@ -827,7 +931,7 @@ if ($action === 'save') {
         }
     }
 
-    if ($hours <= 0) {
+    if ($bookingType === 'leave' && $hours <= 0) {
         json_error('Deze verlofboeking bevat geen verlofuren.');
     }
 
@@ -840,7 +944,7 @@ if ($action === 'save') {
         $existing = $stmt->fetch();
 
         if (!$existing) {
-            json_error('Verlofboeking niet gevonden.', 404);
+            json_error('Boeking niet gevonden.', 404);
         }
 
         check_entry_access($user, $existing);
@@ -858,6 +962,7 @@ if ($action === 'save') {
                  end_time = ?,
                  hours = ?,
                  calculation_mode = ?,
+                 booking_type = ?,
                  note = ?
              WHERE id = ?'
         )->execute([
@@ -868,6 +973,7 @@ if ($action === 'save') {
             $endTime,
             $hours,
             $mode,
+            $bookingType,
             mb_substr($note, 0, 255),
             $id
         ]);
@@ -884,9 +990,10 @@ if ($action === 'save') {
                     end_time,
                     hours,
                     calculation_mode,
+                    booking_type,
                     note
                 )
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $targetUser,
             $start,
@@ -895,13 +1002,15 @@ if ($action === 'save') {
             $endTime,
             $hours,
             $mode,
+            $bookingType,
             mb_substr($note, 0, 255)
         ]);
     }
 
     echo json_encode([
         'ok' => true,
-        'hours' => $hours
+        'hours' => $hours,
+        'booking_type' => $bookingType
     ]);
 
     exit;
@@ -909,7 +1018,7 @@ if ($action === 'save') {
 
 /*
 |--------------------------------------------------------------------------
-| Gewoon verlof verwijderen
+| Verlof of ziekte verwijderen
 |--------------------------------------------------------------------------
 */
 
@@ -925,7 +1034,7 @@ if ($action === 'delete') {
     $existing = $stmt->fetch();
 
     if (!$existing) {
-        json_error('Verlofboeking niet gevonden.', 404);
+        json_error('Boeking niet gevonden.', 404);
     }
 
     check_entry_access($user, $existing);
@@ -939,60 +1048,3 @@ if ($action === 'delete') {
 }
 
 json_error('Onbekende actie.');
-
-/*
-|--------------------------------------------------------------------------
-| Nederlandse feestdagen
-|--------------------------------------------------------------------------
-*/
-
-function dutch_holidays(int $year, int $endYear): array
-{
-    $all = [];
-
-    for ($y = $year; $y <= $endYear; $y++) {
-
-        $easter = new DateTimeImmutable('@' . easter_date($y));
-
-        $easter = $easter->setTimezone(
-            new DateTimeZone('Europe/Amsterdam')
-        );
-
-        $add = function (
-            DateTimeImmutable $d,
-            string $name
-        ) use (&$all) {
-            $all[$d->format('Y-m-d')] = $name;
-        };
-
-        $add(new DateTimeImmutable("$y-01-01"), 'Nieuwjaarsdag');
-        $add(new DateTimeImmutable("$y-04-27"), 'Koningsdag');
-
-        $add($easter->modify('-2 days'), 'Goede Vrijdag');
-        $add($easter, 'Eerste paasdag');
-        $add($easter->modify('+1 day'), 'Tweede paasdag');
-        $add($easter->modify('+39 days'), 'Hemelvaartsdag');
-        $add($easter->modify('+49 days'), 'Eerste pinksterdag');
-        $add($easter->modify('+50 days'), 'Tweede pinksterdag');
-
-        $add(new DateTimeImmutable("$y-12-25"), 'Eerste kerstdag');
-        $add(new DateTimeImmutable("$y-12-26"), 'Tweede kerstdag');
-
-        if ($y % 5 === 0) {
-            $add(new DateTimeImmutable("$y-05-05"), 'Bevrijdingsdag');
-        }
-
-        if (
-            (int)(new DateTimeImmutable("$y-04-27"))->format('N') === 7
-        ) {
-            unset($all["$y-04-27"]);
-
-            $add(
-                new DateTimeImmutable("$y-04-26"),
-                'Koningsdag'
-            );
-        }
-    }
-
-    return $all;
-}

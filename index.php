@@ -1,3 +1,4 @@
+
 <?php
 require_once __DIR__ . '/config.php';
 
@@ -222,7 +223,10 @@ if ($user['role'] === 'admin') {
 
             <strong class="stat-value">
                 <span id="availableHours">
+
                     <?= number_format($annualAllowance, 2, ',', '.') ?>
+
+                    <?= number_format($totalAvailable, 2, ',', '.') ?>
                 </span>
                 <small>uur</small>
             </strong>

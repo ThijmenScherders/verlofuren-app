@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('leaveForm');
     const mode = document.getElementById('calculationMode');
     const hoursWrap = document.getElementById('hoursWrap');
+    const calculationWrap = document.getElementById('calculationWrap');
     const errorEl = document.getElementById('formError');
     const deleteButton = document.getElementById('deleteLeave');
 
@@ -183,11 +184,21 @@ document.addEventListener('DOMContentLoaded', () => {
         creditDateInput.required = isCredit;
         creditMinutesInput.required = isCredit;
 
-        const calculationWrap =
-            document.getElementById('calculationWrap');
+        // Bij ziekte is een urenberekening niet nodig.
+        calculationWrap.classList.toggle(
+            'hidden',
+            isCredit || isSick
+        );
+        if (isSick) {
+            mode.value = 'automatic';
+        }
 
-        calculationWrap.classList.toggle('hidden', isSick);
-        hoursWrap.classList.toggle('hidden', isSick || mode.value !== 'manual');
+        mode.disabled = isSick;
+
+        hoursWrap.classList.toggle(
+            'hidden',
+            isCredit || isSick || mode.value !== 'manual'
+        );
 
         if (isCredit) {
 
@@ -285,10 +296,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } else {
 
-            // Bestaande boeking kan verlof of ziekte zijn.
-            entryType.value = p.entry_type === 'sick'
-                ? 'sick'
-                : 'leave';
+            entryType.value =
+                p.entry_type === 'sick' ? 'sick' : 'leave';
 
             startDateInput.value = event.startStr.slice(0, 10);
 
