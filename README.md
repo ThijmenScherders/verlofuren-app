@@ -64,4 +64,4 @@ Voor een echte openbare server: gebruik HTTPS, stel een sterk databasewachtwoord
 Must= have = 1 (Done) + 2 (Done) + 3 + 5
 Could have = 4 + 6 (Done) + 7 + 8
 
-Can have = 
+Can have =  

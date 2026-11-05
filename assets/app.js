@@ -26,9 +26,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const creditDateInput = document.getElementById('creditDate');
     const creditMinutesInput = document.getElementById('creditMinutes');
 
+    // Elementen voor uitbetalingen.
+    const payoutDialog = document.getElementById('payoutDialog');
+    const payoutForm = document.getElementById('payoutForm');
+    const payoutHistory = document.getElementById('payoutHistory');
+    const payoutError = document.getElementById('payoutError');
+
+    const payoutDateInput = document.getElementById('payoutDate');
+    const payoutHoursInput = document.getElementById('payoutHours');
+    const payoutNoteInput = document.getElementById('payoutNote');
+    const payoutEmployeeInput = document.getElementById('payoutEmployeeId');
+
     const ANNUAL_ALLOWANCE = 193.75;
 
     let calendar;
+
+    let currentBalanceYear = new Date().getFullYear();
 
     const localDate = (date) => {
 
@@ -138,6 +151,293 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Saldo ophalen mislukt:', err);
 
         }
+
+    }
+
+    // Uitbetalingsgeschiedenis ophalen.
+    async function loadPayoutHistory(year = currentBalanceYear) {
+
+        if (!payoutHistory) return;
+
+        payoutHistory.textContent = 'Uitbetalingen worden geladen...';
+
+        try {
+
+            let url =
+                `api.php?payouts_year=${encodeURIComponent(year)}`;
+
+            if (payoutEmployeeInput && payoutEmployeeInput.value) {
+
+                url +=
+                    `&user_id=${encodeURIComponent(payoutEmployeeInput.value)}`;
+
+            }
+
+            const data = await request(url);
+
+            // Ondersteunt zowel een array als een object met payouts.
+            const payouts = Array.isArray(data)
+                ? data
+                : (data.payouts || data.entries || []);
+
+            payoutHistory.replaceChildren();
+
+            if (payouts.length === 0) {
+
+                const emptyMessage = document.createElement('p');
+
+                emptyMessage.className = 'muted';
+                emptyMessage.textContent =
+                    `Er zijn nog geen uitbetalingen geregistreerd voor ${year}.`;
+
+                payoutHistory.appendChild(emptyMessage);
+
+                return;
+
+            }
+
+            const table = document.createElement('table');
+            table.className = 'payout-table';
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+
+            const headers = [
+                'Datum',
+                'Medewerker',
+                'Aantal uren',
+                'Opmerking',
+                'Actie'
+            ];
+
+            headers.forEach((header) => {
+
+                const th = document.createElement('th');
+
+                th.textContent = header;
+
+                headerRow.appendChild(th);
+
+            });
+
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+
+            payouts.forEach((payout) => {
+
+                const row = document.createElement('tr');
+
+                const dateCell = document.createElement('td');
+                const employeeCell = document.createElement('td');
+                const hoursCell = document.createElement('td');
+                const noteCell = document.createElement('td');
+                const actionCell = document.createElement('td');
+
+                const date = new Date(
+                    `${payout.payout_date}T00:00:00`
+                );
+
+                dateCell.textContent = Number.isNaN(date.getTime())
+                    ? payout.payout_date
+                    : date.toLocaleDateString('nl-NL');
+
+                employeeCell.textContent =
+                    payout.name || 'Medewerker';
+
+                hoursCell.textContent =
+                    `${formatHours(payout.hours)} uur`;
+
+                noteCell.textContent =
+                    payout.note || '—';
+
+                const deletePayoutButton =
+                    document.createElement('button');
+
+                deletePayoutButton.type = 'button';
+                deletePayoutButton.className =
+                    'button secondary payout-delete-button';
+
+                deletePayoutButton.textContent = 'Verwijderen';
+
+                deletePayoutButton.addEventListener('click', () => {
+
+                    deletePayout(payout.id);
+
+                });
+
+                actionCell.appendChild(deletePayoutButton);
+
+                row.append(
+                    dateCell,
+                    employeeCell,
+                    hoursCell,
+                    noteCell,
+                    actionCell
+                );
+
+                tbody.appendChild(row);
+
+            });
+
+            table.appendChild(tbody);
+            payoutHistory.appendChild(table);
+
+        } catch (err) {
+
+            console.error('Uitbetalingen ophalen mislukt:', err);
+
+            payoutHistory.textContent =
+                `Uitbetalingen konden niet worden opgehaald: ${err.message}`;
+
+        }
+
+    }
+
+    // Uitbetaling verwijderen.
+    async function deletePayout(id) {
+
+        if (!confirm('Weet je zeker dat je deze uitbetaling wilt verwijderen?')) {
+            return;
+        }
+
+        try {
+
+            await request('api.php', {
+
+                method: 'POST',
+
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+
+                body: JSON.stringify({
+
+                    action: 'delete_payout',
+
+                    id: id,
+
+                    csrf: window.APP_CONFIG.csrf
+
+                })
+
+            });
+
+            await updateBalance(currentBalanceYear);
+
+            await loadPayoutHistory(currentBalanceYear);
+
+        } catch (err) {
+
+            alert(err.message);
+
+        }
+
+    }
+
+    // Nieuwe uitbetaling openen.
+    function openPayoutDialog() {
+
+        if (!payoutDialog || !payoutForm) return;
+
+        payoutForm.reset();
+
+        payoutDateInput.value = localDate(new Date());
+
+        if (payoutEmployeeInput && !window.APP_CONFIG.isAdmin) {
+            payoutEmployeeInput.value = window.APP_CONFIG.currentUserId;
+        }
+
+        payoutError.textContent = '';
+
+        payoutDialog.showModal();
+
+    }
+
+    // Uitbetaling opslaan.
+    if (payoutForm) {
+
+        payoutForm.addEventListener('submit', async (event) => {
+
+            event.preventDefault();
+
+            payoutError.textContent = '';
+
+            const hours = Number(payoutHoursInput.value);
+
+            if (!payoutDateInput.value) {
+
+                payoutError.textContent =
+                    'Vul een datum in voor de uitbetaling.';
+
+                return;
+
+            }
+
+            if (!Number.isFinite(hours) || hours <= 0 || hours > 1000) {
+
+                payoutError.textContent =
+                    'Vul een geldig aantal uren in.';
+
+                return;
+
+            }
+
+            const payload = {
+
+                action: 'save_payout',
+
+                csrf: window.APP_CONFIG.csrf,
+
+                payout_date: payoutDateInput.value,
+
+                hours: hours,
+
+                note: payoutNoteInput.value
+
+            };
+
+            if (payoutEmployeeInput) {
+                payload.user_id = Number(payoutEmployeeInput.value);
+            }
+
+            try {
+
+                await request('api.php', {
+
+                    method: 'POST',
+
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+
+                    body: JSON.stringify(payload)
+
+                });
+
+                payoutDialog.close();
+
+                const payoutYear =
+                    Number(payoutDateInput.value.slice(0, 4));
+
+                await updateBalance(payoutYear);
+
+                await loadPayoutHistory(currentBalanceYear);
+
+                if (payoutYear !== currentBalanceYear) {
+
+                    await loadPayoutHistory(payoutYear);
+
+                }
+
+            } catch (err) {
+
+                payoutError.textContent = err.message;
+
+            }
+
+        });
 
     }
 
@@ -356,7 +656,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const selectedYear =
                 info.view.calendar.getDate().getFullYear();
 
+            currentBalanceYear = selectedYear;
+
             updateBalance(selectedYear);
+
+            loadPayoutHistory(selectedYear);
 
         },
 
@@ -441,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     calendar.render();
 
-    // Knoppen.
+    // Knoppen voor boekingen.
     document.getElementById('addLeave').addEventListener(
         'click',
         () => openNew()
@@ -456,6 +760,53 @@ document.addEventListener('DOMContentLoaded', () => {
         'click',
         () => dialog.close()
     );
+
+    // Knoppen voor uitbetalingen.
+    const addPayoutButton = document.getElementById('addPayout');
+
+    if (addPayoutButton && payoutDialog) {
+
+        addPayoutButton.addEventListener(
+            'click',
+            openPayoutDialog
+        );
+
+    }
+
+    const closePayoutButton =
+        document.getElementById('closePayoutDialog');
+
+    const cancelPayoutButton =
+        document.getElementById('cancelPayoutDialog');
+
+    if (closePayoutButton && payoutDialog) {
+
+        closePayoutButton.addEventListener(
+            'click',
+            () => payoutDialog.close()
+        );
+
+    }
+
+    if (cancelPayoutButton && payoutDialog) {
+
+        cancelPayoutButton.addEventListener(
+            'click',
+            () => payoutDialog.close()
+        );
+
+    }
+
+    // Bij een andere medewerker de geschiedenis opnieuw laden.
+    if (payoutEmployeeInput) {
+
+        payoutEmployeeInput.addEventListener('change', () => {
+
+            loadPayoutHistory(currentBalanceYear);
+
+        });
+
+    }
 
     // Boeking opslaan.
     form.addEventListener('submit', async (event) => {

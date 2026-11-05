@@ -122,12 +122,38 @@ $creditHours = $creditMinutes / 60;
 
 /*
 |--------------------------------------------------------------------------
+| Uitbetaalde verlofuren van het huidige jaar
+|--------------------------------------------------------------------------
+*/
+
+$payoutStmt = db()->prepare(
+    'SELECT COALESCE(SUM(hours), 0)
+     FROM leave_payouts
+     WHERE user_id = ?
+       AND payout_date >= ?
+       AND payout_date < ?'
+);
+
+$payoutStmt->execute([
+    $user['id'],
+    $yearStart,
+    $nextYearStart
+]);
+
+$payoutHours = (float)$payoutStmt->fetchColumn();
+
+/*
+|--------------------------------------------------------------------------
 | Totaal beschikbaar saldo berekenen
 |--------------------------------------------------------------------------
 */
 
 $totalAvailable = $annualAllowance;
-$remaining = $annualAllowance + $creditHours - $used;
+
+$remaining = $annualAllowance
+    + $creditHours
+    - $used
+    - $payoutHours;
 
 $hoursPerDay = (float)$user['leave_day_hours'];
 
@@ -191,21 +217,21 @@ $roleLabel = $user['role'] === 'admin'
 
     <nav>
 
-       <span class="user-greeting">
-    <span class="user-name">
-        <?= e($user['name']) ?>
-    </span>
+        <span class="user-greeting">
+            <span class="user-name">
+                <?= e($user['name']) ?>
+            </span>
 
-    <span class="user-role">
-        <?= ($user['role'] === 'admin') ? 'Beheerder' : 'Medewerker' ?>
-    </span>
+            <span class="user-role">
+                <?= ($user['role'] === 'admin') ? 'Beheerder' : 'Medewerker' ?>
+            </span>
 
-    <?php if (!empty($user['work_number'])): ?>
-        <span class="user-work-number">
-            Werknummer: <?= e($user['work_number']) ?>
+            <?php if (!empty($user['work_number'])): ?>
+                <span class="user-work-number">
+                    Werknummer: <?= e($user['work_number']) ?>
+                </span>
+            <?php endif; ?>
         </span>
-    <?php endif; ?>
-</span>
 
         <?php if ($user['role'] === 'admin'): ?>
             <a href="medewerkers.php">Medewerkers</a>
@@ -229,9 +255,17 @@ $roleLabel = $user['role'] === 'admin'
             </p>
         </div>
 
-        <button class="button" id="addLeave">
-            Boeking toevoegen
-        </button>
+        <div class="page-actions">
+
+            <button class="button secondary" id="addPayout">
+                Verlofuren uitbetalen
+            </button>
+
+            <button class="button" id="addLeave">
+                Boeking toevoegen
+            </button>
+
+        </div>
     </div>
 
     <section class="stats">
@@ -351,6 +385,27 @@ $roleLabel = $user['role'] === 'admin'
         <div id="calendar"></div>
     </section>
 
+    <!-- Uitbetalingsgeschiedenis -->
+
+    <section class="calendar-card payout-card">
+
+        <div class="section-heading">
+            <div>
+                <h2>Uitbetaalde verlofuren</h2>
+                <p class="muted">
+                    Overzicht van de geregistreerde uitbetalingen.
+                </p>
+            </div>
+        </div>
+
+        <div id="payoutHistory">
+            <p class="muted">
+                Uitbetalingen worden geladen...
+            </p>
+        </div>
+
+    </section>
+
     <p class="footnote">
         Je jaarlijkse verlofrecht bedraagt
         <?= number_format($annualAllowance, 2, ',', '.') ?> uur.
@@ -362,6 +417,110 @@ $roleLabel = $user['role'] === 'admin'
     </p>
 
 </main>
+
+<!-- Formulier voor verlofuren uitbetalen -->
+
+<dialog id="payoutDialog">
+
+    <form id="payoutForm">
+
+        <div class="modal-heading">
+            <div>
+                <p class="eyebrow">UITBETALING</p>
+                <h2>Verlofuren uitbetalen</h2>
+            </div>
+
+            <button
+                type="button"
+                class="icon-button"
+                id="closePayoutDialog"
+                aria-label="Sluiten"
+            >
+                ×
+            </button>
+        </div>
+
+        <?php if ($user['role'] === 'admin'): ?>
+
+            <label>
+                Medewerker
+
+                <select id="payoutEmployeeId" required>
+
+                    <?php foreach ($employees as $emp): ?>
+
+                        <option value="<?= (int)$emp['id'] ?>">
+                            <?= e($emp['name']) ?>
+                            (<?= e($emp['email']) ?>)
+                        </option>
+
+                    <?php endforeach; ?>
+
+                </select>
+            </label>
+
+        <?php endif; ?>
+
+        <label>
+            Datum van uitbetaling
+
+            <input
+                type="date"
+                id="payoutDate"
+                required
+            >
+        </label>
+
+        <label>
+            Aantal uit te betalen uren
+
+            <input
+                type="number"
+                id="payoutHours"
+                min="0.01"
+                max="1000"
+                step="0.01"
+                placeholder="Bijvoorbeeld 8"
+                required
+            >
+        </label>
+
+        <label>
+            Opmerking (optioneel)
+
+            <input
+                type="text"
+                id="payoutNote"
+                maxlength="255"
+                placeholder="Bijvoorbeeld uitbetaling vakantiedagen"
+            >
+        </label>
+
+        <p id="payoutError" class="form-error"></p>
+
+        <div class="modal-actions">
+
+            <span class="spacer"></span>
+
+            <button
+                type="button"
+                class="button secondary"
+                id="cancelPayoutDialog"
+            >
+                Annuleren
+            </button>
+
+            <button type="submit" class="button">
+                Uitbetaling opslaan
+            </button>
+
+        </div>
+
+    </form>
+
+</dialog>
+
+<!-- Bestaand formulier voor boekingen -->
 
 <dialog id="leaveDialog">
 
@@ -403,12 +562,16 @@ $roleLabel = $user['role'] === 'admin'
             <?php if ($user['role'] === 'admin'): ?>
 
                 <select id="employeeId" required>
+
                     <?php foreach ($employees as $emp): ?>
+
                         <option value="<?= (int)$emp['id'] ?>">
                             <?= e($emp['name']) ?>
                             (<?= e($emp['email']) ?>)
                         </option>
+
                     <?php endforeach; ?>
+
                 </select>
 
             <?php else: ?>
@@ -420,6 +583,7 @@ $roleLabel = $user['role'] === 'admin'
                 >
 
             <?php endif; ?>
+
         </label>
 
         <div id="leaveFields">
@@ -442,6 +606,7 @@ $roleLabel = $user['role'] === 'admin'
 
                 <label>
                     Begintijd
+
                     <input
                         type="time"
                         id="startTime"
@@ -452,6 +617,7 @@ $roleLabel = $user['role'] === 'admin'
 
                 <label>
                     Eindtijd
+
                     <input
                         type="time"
                         id="endTime"
@@ -472,6 +638,7 @@ $roleLabel = $user['role'] === 'admin'
                 Berekening
 
                 <select id="calculationMode">
+
                     <option value="automatic">
                         Automatisch volgens werkrooster
                     </option>
@@ -479,6 +646,7 @@ $roleLabel = $user['role'] === 'admin'
                     <option value="manual">
                         Handmatig aantal uren
                     </option>
+
                 </select>
             </label>
 
