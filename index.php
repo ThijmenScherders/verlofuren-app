@@ -3,16 +3,31 @@ require_once __DIR__ . '/config.php';
 
 $user = require_login();
 
+// Opgenomen verlofuren ophalen
 $balanceStmt = db()->prepare(
-    'SELECT COALESCE(SUM(hours),0)
+    'SELECT COALESCE(SUM(hours), 0)
      FROM leave_entries
-     WHERE user_id=?'
+     WHERE user_id = ?'
 );
 
 $balanceStmt->execute([$user['id']]);
-
 $used = (float)$balanceStmt->fetchColumn();
-$remaining = (float)$user['allowance_hours'] - $used;
+
+// Tijd-voor-tijdminuten ophalen
+$creditStmt = db()->prepare(
+    'SELECT COALESCE(SUM(minutes), 0)
+     FROM time_credits
+     WHERE user_id = ?'
+);
+
+$creditStmt->execute([$user['id']]);
+$creditMinutes = (int)$creditStmt->fetchColumn();
+
+$creditHours = $creditMinutes / 60;
+
+// Totaal beschikbaar saldo berekenen
+$totalAvailable = (float)$user['allowance_hours'] + $creditHours;
+$remaining = $totalAvailable - $used;
 
 $hoursPerDay = (float)$user['leave_day_hours'];
 
@@ -20,7 +35,7 @@ if ($hoursPerDay <= 0) {
     $hoursPerDay = 7.75;
 }
 
-$availableDays = $remaining / $hoursPerDay;
+$availableDays = $totalAvailable / $hoursPerDay;
 $usedDays = $used / $hoursPerDay;
 $remainingDays = $remaining / $hoursPerDay;
 
@@ -30,15 +45,14 @@ $employees = [];
 
 if ($user['role'] === 'admin') {
     $employees = db()->query(
-        'SELECT id,name,email,allowance_hours
-         FROM users ORDER BY name'
+        'SELECT id, name, email, allowance_hours
+         FROM users
+         ORDER BY name'
     )->fetchAll();
 }
 ?>
-
 <!doctype html>
 <html lang="nl">
-
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -53,14 +67,12 @@ if ($user['role'] === 'admin') {
     >
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales-all.global.min.js"></script>
 </head>
 
 <body>
 
 <header class="topbar">
-
     <a class="brand" href="index.php">
         <span class="brand-mark small-mark">V</span>
         Verlofuren
@@ -80,23 +92,22 @@ if ($user['role'] === 'admin') {
         <a href="admin.php">Admin</a>
         <a href="logout.php">Uitloggen</a>
     </nav>
-
 </header>
 
 <main class="container">
 
     <div class="page-heading">
-
         <div>
             <p class="eyebrow">WERKPLANNING</p>
             <h1>Verlofkalender</h1>
-            <p class="muted">Plan verlof in en houd je saldo bij.</p>
+            <p class="muted">
+                Plan verlof en houd je tijd-voor-tijdsaldo bij.
+            </p>
         </div>
 
         <button class="button" id="addLeave">
-            Verlof inplannen
+            Boeking toevoegen
         </button>
-
     </div>
 
     <section class="stats">
@@ -105,7 +116,7 @@ if ($user['role'] === 'admin') {
             <span>Beschikbaar verlof</span>
 
             <strong>
-                <?= number_format((float)$user['allowance_hours'], 2, ',', '.') ?>
+                <?= number_format($totalAvailable, 2, ',', '.') ?>
                 <small>uur</small>
             </strong>
 
@@ -143,10 +154,14 @@ if ($user['role'] === 'admin') {
     </section>
 
     <div class="legend">
-
         <span>
             <i class="dot leave-dot"></i>
             Verlof
+        </span>
+
+        <span>
+            <i class="dot" style="background:#22c55e"></i>
+            Tijd voor tijd
         </span>
 
         <span>
@@ -155,9 +170,8 @@ if ($user['role'] === 'admin') {
         </span>
 
         <span class="muted">
-            Klik op een verlofboeking om deze te bekijken of aan te passen.
+            Klik op een boeking om deze te bekijken of aan te passen.
         </span>
-
     </div>
 
     <section class="calendar-card">
@@ -177,10 +191,9 @@ if ($user['role'] === 'admin') {
     <form id="leaveForm">
 
         <div class="modal-heading">
-
             <div>
-                <p class="eyebrow">VERLOFBOEKING</p>
-                <h2 id="dialogTitle">Verlof inplannen</h2>
+                <p class="eyebrow">BOEKING</p>
+                <h2 id="dialogTitle">Boeking toevoegen</h2>
             </div>
 
             <button
@@ -191,110 +204,150 @@ if ($user['role'] === 'admin') {
             >
                 ×
             </button>
-
         </div>
 
         <input type="hidden" id="leaveId">
 
+        <!-- Type boeking -->
+        <label>
+            Type boeking
+
+            <select id="entryType" required>
+                <option value="leave">Verlof</option>
+                <option value="time_credit">Tijd voor tijd</option>
+            </select>
+        </label>
+
+        <!-- Medewerker -->
         <label>
             Medewerker
 
             <?php if ($user['role'] === 'admin'): ?>
 
                 <select id="employeeId" required>
-
                     <?php foreach ($employees as $emp): ?>
                         <option value="<?= (int)$emp['id'] ?>">
                             <?= e($emp['name']) ?>
                             (<?= e($emp['email']) ?>)
                         </option>
                     <?php endforeach; ?>
-
                 </select>
 
             <?php else: ?>
 
-                <input value="<?= e($user['name']) ?>" disabled>
+                <input
+                    type="text"
+                    value="<?= e($user['name']) ?>"
+                    disabled
+                >
 
             <?php endif; ?>
-
         </label>
 
-        <div class="form-grid">
+        <!-- Verlofvelden -->
+        <div id="leaveFields">
+
+            <div class="form-grid">
+
+                <label>
+                    Begindatum
+                    <input type="date" id="startDate" required>
+                </label>
+
+                <label>
+                    Einddatum
+                    <input type="date" id="endDate" required>
+                </label>
+
+            </div>
+
+            <div class="form-grid">
+
+                <label>
+                    Begintijd
+                    <input
+                        type="time"
+                        id="startTime"
+                        value="08:45"
+                        required
+                    >
+                </label>
+
+                <label>
+                    Eindtijd
+                    <input
+                        type="time"
+                        id="endTime"
+                        value="16:30"
+                        required
+                    >
+                </label>
+
+            </div>
+
+            <p class="muted">
+                Normale werktijden: 08:45 tot 16:30 (7,75 uur).
+                Je kunt de tijden per verlofboeking aanpassen.
+            </p>
 
             <label>
-                Begindatum
-                <input type="date" id="startDate" required>
+                Berekening
+
+                <select id="calculationMode">
+                    <option value="automatic">
+                        Automatisch volgens werkrooster
+                    </option>
+
+                    <option value="manual">
+                        Handmatig aantal uren
+                    </option>
+                </select>
             </label>
 
-            <label>
-                Einddatum
-                <input type="date" id="endDate" required>
+            <label id="hoursWrap" class="hidden">
+                Aantal uren
+
+                <input
+                    type="number"
+                    id="hours"
+                    min="0"
+                    max="1000"
+                    step="0.01"
+                    value="1"
+                >
             </label>
 
         </div>
 
-        <div class="form-grid">
+        <!-- Tijd-voor-tijdvelden -->
+        <div id="creditFields" class="hidden">
 
             <label>
-                Begintijd
-                <input
-                    type="time"
-                    id="startTime"
-                    value="08:45"
-                    required
-                >
+                Datum waarop je extra hebt gewerkt
+
+                <input type="date" id="creditDate">
             </label>
 
             <label>
-                Eindtijd
+                Aantal minuten
+
                 <input
-                    type="time"
-                    id="endTime"
-                    value="16:30"
-                    required
+                    type="number"
+                    id="creditMinutes"
+                    min="15"
+                    step="1"
+                    placeholder="Bijvoorbeeld 45"
                 >
             </label>
+
+            <p class="muted">
+                Vul het aantal extra gewerkte minuten in.
+                Je kunt minimaal 15 minuten registreren.
+            </p>
 
         </div>
 
-        <p class="muted">
-            Normale werktijden: 08:45 tot 16:30 (7,75 uur).
-            Je kunt de tijden per verlofboeking aanpassen.
-        </p>
-
-        <label>
-            Berekening
-
-            <select id="calculationMode">
-
-                <option value="automatic">
-                    Automatisch volgens werkrooster
-                </option>
-
-                <option value="manual">
-                    Handmatig aantal uren
-                </option>
-
-            </select>
-
-        </label>
-
-        <label id="hoursWrap" class="hidden">
-
-            Aantal uren
-
-            <input
-                type="number"
-                id="hours"
-                min="0"
-                max="1000"
-                step="0.01"
-                value="1"
-            >
-
-        </label>
-
+        <!-- Opmerking -->
         <label>
             Opmerking (optioneel)
 
@@ -302,7 +355,7 @@ if ($user['role'] === 'admin') {
                 type="text"
                 id="note"
                 maxlength="255"
-                placeholder="Bijv. vakantie"
+                placeholder="Bijv. vakantie of extra gewerkt"
             >
         </label>
 
