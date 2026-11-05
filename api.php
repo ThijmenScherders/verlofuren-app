@@ -5,28 +5,22 @@ $user = require_login();
 
 header('Content-Type: application/json; charset=utf-8');
 
-function json_error(string $message, int $code = 400): never {
+function json_error(string $message, int $code = 400): never
+{
     http_response_code($code);
     echo json_encode(['error' => $message], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-/**
- * Zet een tijd zoals 09:30 om naar minuten vanaf middernacht.
- */
-function time_to_minutes(string $time): int {
+function time_to_minutes(string $time): int
+{
     $parts = explode(':', $time);
 
     return ((int)$parts[0] * 60) + (int)$parts[1];
 }
 
-/**
- * Berekent het aantal minuten binnen de normale werktijden.
- *
- * Normale werkdag:
- * 08:45 tot 16:30 = 7,75 uur.
- */
-function working_minutes(string $startTime, string $endTime): int {
+function working_minutes(string $startTime, string $endTime): int
+{
     $workStart = 8 * 60 + 45;
     $workEnd = 16 * 60 + 30;
 
@@ -36,13 +30,6 @@ function working_minutes(string $startTime, string $endTime): int {
     return max(0, $end - $start);
 }
 
-/**
- * Bereken verlofuren voor een periode.
- *
- * Eerste dag: begintijd tot 16:30.
- * Laatste dag: 08:45 tot eindtijd.
- * Tussenliggende dagen: volledig volgens werkrooster.
- */
 function hours_for_range(
     array $employee,
     string $start,
@@ -92,52 +79,80 @@ function hours_for_range(
             continue;
         }
 
-        // Eén dag: bereken alleen de periode tussen de ingevulde tijden.
         if ($start === $end) {
 
             $minutes = working_minutes($startTime, $endTime);
-            $dayHours = $minutes / 60;
-
-            $total += min($dayHours, $scheduledHours);
+            $total += min($minutes / 60, $scheduledHours);
 
             continue;
         }
 
-        // Eerste dag: begintijd tot einde normale werkdag.
         if ($date === $start) {
 
             $minutes = working_minutes($startTime, '16:30');
-            $dayHours = $minutes / 60;
-
-            $total += min($dayHours, $scheduledHours);
+            $total += min($minutes / 60, $scheduledHours);
 
             continue;
         }
 
-        // Laatste dag: begin normale werkdag tot ingevulde eindtijd.
         if ($date === $end) {
 
             $minutes = working_minutes('08:45', $endTime);
-            $dayHours = $minutes / 60;
-
-            $total += min($dayHours, $scheduledHours);
+            $total += min($minutes / 60, $scheduledHours);
 
             continue;
         }
 
-        // Tussenliggende werkdagen worden volledig gerekend.
         $total += $scheduledHours;
     }
 
     return round($total, 2);
 }
 
+function valid_date(string $date): bool
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return false;
+    }
+
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+    return $parsed !== false && $parsed->format('Y-m-d') === $date;
+}
+
+function get_target_user(array $user, array $input): int
+{
+    return $user['role'] === 'admin'
+        ? (int)($input['user_id'] ?? $user['id'])
+        : (int)$user['id'];
+}
+
+function check_entry_access(array $user, array $entry): void
+{
+    if (
+        $user['role'] !== 'admin' &&
+        (int)$entry['user_id'] !== (int)$user['id']
+    ) {
+        json_error('Geen toegang.', 403);
+    }
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
+
+/*
+|--------------------------------------------------------------------------
+| GET: kalendergegevens ophalen
+|--------------------------------------------------------------------------
+*/
 
 if ($method === 'GET') {
 
     $start = (string)($_GET['start'] ?? date('Y-m-01'));
     $end = (string)($_GET['end'] ?? date('Y-m-t'));
+
+    if (!valid_date($start) || !valid_date($end)) {
+        json_error('Ongeldige kalenderdatums.');
+    }
 
     $isAdmin = $user['role'] === 'admin';
 
@@ -153,13 +168,13 @@ if ($method === 'GET') {
                 l.note,
                 u.name
             FROM leave_entries l
-            JOIN users u ON u.id=l.user_id
+            JOIN users u ON u.id = l.user_id
             WHERE l.start_date <= ? AND l.end_date >= ?';
 
     $params = [$end, $start];
 
     if (!$isAdmin) {
-        $sql .= ' AND l.user_id=?';
+        $sql .= ' AND l.user_id = ?';
         $params[] = $user['id'];
     }
 
@@ -168,14 +183,16 @@ if ($method === 'GET') {
 
     $events = [];
 
+    // Gewone verlofboekingen.
     foreach ($stmt->fetchAll() as $r) {
 
         $events[] = [
             'id' => (string)$r['id'],
 
-            'title' => ($isAdmin ? $r['name'] . ' — ' : '') .
+            'title' =>
+                ($isAdmin ? $r['name'] . ' — ' : '') .
                 number_format((float)$r['hours'], 2, ',', '.') .
-                ' uur' .
+                ' uur verlof' .
                 ($r['note'] ? ' · ' . $r['note'] : ''),
 
             'start' => $r['start_date'],
@@ -186,7 +203,11 @@ if ($method === 'GET') {
 
             'allDay' => true,
 
+            'backgroundColor' => '#3978c5',
+            'borderColor' => '#3978c5',
+
             'extendedProps' => [
+                'entry_type' => 'leave',
                 'user_id' => (int)$r['user_id'],
                 'hours' => (float)$r['hours'],
                 'mode' => $r['calculation_mode'],
@@ -194,6 +215,64 @@ if ($method === 'GET') {
                 'name' => $r['name'],
                 'start_time' => $r['start_time'],
                 'end_time' => $r['end_time']
+            ]
+        ];
+    }
+
+    // Tijd-voor-tijdboekingen.
+    $creditSql = 'SELECT
+                    t.id,
+                    t.user_id,
+                    t.work_date,
+                    t.minutes,
+                    t.note,
+                    u.name
+                  FROM time_credits t
+                  JOIN users u ON u.id = t.user_id
+                  WHERE t.work_date >= ? AND t.work_date <= ?';
+
+    $creditParams = [$start, $end];
+
+    if (!$isAdmin) {
+        $creditSql .= ' AND t.user_id = ?';
+        $creditParams[] = $user['id'];
+    }
+
+    $creditStmt = db()->prepare($creditSql);
+    $creditStmt->execute($creditParams);
+
+    foreach ($creditStmt->fetchAll() as $r) {
+
+        $creditHours = (int)$r['minutes'] / 60;
+
+        $events[] = [
+            'id' => 'credit-' . $r['id'],
+
+            'title' =>
+                ($isAdmin ? $r['name'] . ' — ' : '') .
+                '+' .
+                number_format($creditHours, 2, ',', '.') .
+                ' uur tijd-voor-tijd' .
+                ($r['note'] ? ' · ' . $r['note'] : ''),
+
+            'start' => $r['work_date'],
+
+            'end' => (new DateTimeImmutable($r['work_date']))
+                ->modify('+1 day')
+                ->format('Y-m-d'),
+
+            'allDay' => true,
+
+            'backgroundColor' => '#26965b',
+            'borderColor' => '#26965b',
+            'textColor' => '#ffffff',
+
+            'extendedProps' => [
+                'entry_type' => 'time_credit',
+                'user_id' => (int)$r['user_id'],
+                'minutes' => (int)$r['minutes'],
+                'note' => $r['note'],
+                'name' => $r['name']
             ]
         ];
     }
@@ -214,7 +293,9 @@ if ($method === 'GET') {
                 'allDay' => true,
                 'classNames' => ['holiday-event'],
                 'editable' => false,
-                'extendedProps' => ['holiday' => true]
+                'extendedProps' => [
+                    'holiday' => true
+                ]
             ];
         }
     }
@@ -223,25 +304,175 @@ if ($method === 'GET') {
     exit;
 }
 
+/*
+|--------------------------------------------------------------------------
+| POST: wijzigingen verwerken
+|--------------------------------------------------------------------------
+*/
+
 if ($method !== 'POST') {
     json_error('Methode niet toegestaan.', 405);
 }
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
-if (!hash_equals(csrf_token(), (string)($input['csrf'] ?? ''))) {
+if (!hash_equals(
+    csrf_token(),
+    (string)($input['csrf'] ?? '')
+)) {
     json_error('Sessie verlopen. Vernieuw de pagina.', 419);
 }
 
 $action = (string)($input['action'] ?? '');
 
+/*
+|--------------------------------------------------------------------------
+| Tijd-voor-tijd opslaan of aanpassen
+|--------------------------------------------------------------------------
+*/
+
+if ($action === 'save_credit') {
+
+    $id = (string)($input['id'] ?? '');
+
+    if (str_starts_with($id, 'credit-')) {
+        $id = substr($id, 7);
+    }
+
+    $id = (int)$id;
+
+    $targetUser = get_target_user($user, $input);
+
+    $workDate = (string)($input['work_date'] ?? '');
+    $minutes = filter_var(
+        $input['minutes'] ?? null,
+        FILTER_VALIDATE_INT
+    );
+
+    $note = trim((string)($input['note'] ?? ''));
+
+    if (!valid_date($workDate)) {
+        json_error('Kies een geldige datum.');
+    }
+
+    if ($minutes === false || $minutes < 15) {
+        json_error('Tijd-voor-tijd moet minimaal 15 minuten zijn.');
+    }
+
+    if ($minutes > 2147483647) {
+        json_error('Het ingevoerde aantal minuten is te groot.');
+    }
+
+    $targetStmt = db()->prepare(
+        'SELECT id FROM users WHERE id = ?'
+    );
+    $targetStmt->execute([$targetUser]);
+
+    if (!$targetStmt->fetch()) {
+        json_error('Medewerker niet gevonden.');
+    }
+
+    if ($id > 0) {
+
+        $existingStmt = db()->prepare(
+            'SELECT * FROM time_credits WHERE id = ?'
+        );
+        $existingStmt->execute([$id]);
+        $existing = $existingStmt->fetch();
+
+        if (!$existing) {
+            json_error('Tijd-voor-tijdboeking niet gevonden.', 404);
+        }
+
+        check_entry_access($user, $existing);
+
+        if ($user['role'] !== 'admin') {
+            $targetUser = (int)$user['id'];
+        }
+
+        db()->prepare(
+            'UPDATE time_credits
+             SET user_id = ?, work_date = ?, minutes = ?, note = ?
+             WHERE id = ?'
+        )->execute([
+            $targetUser,
+            $workDate,
+            $minutes,
+            mb_substr($note, 0, 255),
+            $id
+        ]);
+
+    } else {
+
+        db()->prepare(
+            'INSERT INTO time_credits
+                (user_id, work_date, minutes, note)
+             VALUES (?, ?, ?, ?)'
+        )->execute([
+            $targetUser,
+            $workDate,
+            $minutes,
+            mb_substr($note, 0, 255)
+        ]);
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'minutes' => $minutes,
+        'hours' => round($minutes / 60, 2)
+    ]);
+
+    exit;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Tijd-voor-tijd verwijderen
+|--------------------------------------------------------------------------
+*/
+
+if ($action === 'delete_credit') {
+
+    $id = (string)($input['id'] ?? '');
+
+    if (str_starts_with($id, 'credit-')) {
+        $id = substr($id, 7);
+    }
+
+    $id = (int)$id;
+
+    $stmt = db()->prepare(
+        'SELECT * FROM time_credits WHERE id = ?'
+    );
+    $stmt->execute([$id]);
+
+    $existing = $stmt->fetch();
+
+    if (!$existing) {
+        json_error('Tijd-voor-tijdboeking niet gevonden.', 404);
+    }
+
+    check_entry_access($user, $existing);
+
+    db()->prepare(
+        'DELETE FROM time_credits WHERE id = ?'
+    )->execute([$id]);
+
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Gewoon verlof opslaan of aanpassen
+|--------------------------------------------------------------------------
+*/
+
 if ($action === 'save') {
 
     $id = (int)($input['id'] ?? 0);
 
-    $targetUser = $user['role'] === 'admin'
-        ? (int)($input['user_id'] ?? $user['id'])
-        : (int)$user['id'];
+    $targetUser = get_target_user($user, $input);
 
     $start = (string)($input['start_date'] ?? '');
     $end = (string)($input['end_date'] ?? '');
@@ -252,23 +483,8 @@ if ($action === 'save') {
     $mode = (string)($input['calculation_mode'] ?? 'automatic');
     $note = trim((string)($input['note'] ?? ''));
 
-    if (
-        !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ||
-        !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)
-    ) {
+    if (!valid_date($start) || !valid_date($end)) {
         json_error('Kies een geldige begin- en einddatum.');
-    }
-
-    $startDate = DateTimeImmutable::createFromFormat('!Y-m-d', $start);
-    $endDate = DateTimeImmutable::createFromFormat('!Y-m-d', $end);
-
-    if (
-        !$startDate ||
-        !$endDate ||
-        $startDate->format('Y-m-d') !== $start ||
-        $endDate->format('Y-m-d') !== $end
-    ) {
-        json_error('Kies geldige datums.');
     }
 
     if ($end < $start) {
@@ -296,7 +512,9 @@ if ($action === 'save') {
         );
     }
 
-    $stmt = db()->prepare('SELECT * FROM users WHERE id=?');
+    $stmt = db()->prepare(
+        'SELECT * FROM users WHERE id = ?'
+    );
     $stmt->execute([$targetUser]);
     $target = $stmt->fetch();
 
@@ -317,7 +535,9 @@ if ($action === 'save') {
             );
 
         } catch (Throwable $e) {
+
             json_error($e->getMessage());
+
         }
 
     } else {
@@ -328,7 +548,9 @@ if ($action === 'save') {
         );
 
         if ($hours === false || $hours <= 0 || $hours > 1000) {
-            json_error('Vul een geldig aantal uren in (meer dan 0 t/m 1000).');
+            json_error(
+                'Vul een geldig aantal uren in (meer dan 0 t/m 1000).'
+            );
         }
 
         $hours = round((float)$hours, 2);
@@ -352,7 +574,6 @@ if ($action === 'save') {
         }
 
         if (!empty($holidayNames)) {
-
             json_error(
                 'Let op: deze periode bevat een feestdag. ' .
                 'Hier hoef je geen verlof voor aan te vragen. (' .
@@ -368,9 +589,8 @@ if ($action === 'save') {
     if ($id > 0) {
 
         $stmt = db()->prepare(
-            'SELECT user_id FROM leave_entries WHERE id=?'
+            'SELECT user_id FROM leave_entries WHERE id = ?'
         );
-
         $stmt->execute([$id]);
         $existing = $stmt->fetch();
 
@@ -378,12 +598,7 @@ if ($action === 'save') {
             json_error('Verlofboeking niet gevonden.', 404);
         }
 
-        if (
-            $user['role'] !== 'admin' &&
-            (int)$existing['user_id'] !== (int)$user['id']
-        ) {
-            json_error('Geen toegang.', 403);
-        }
+        check_entry_access($user, $existing);
 
         if ($user['role'] !== 'admin') {
             $targetUser = (int)$user['id'];
@@ -391,15 +606,15 @@ if ($action === 'save') {
 
         db()->prepare(
             'UPDATE leave_entries
-             SET user_id=?,
-                 start_date=?,
-                 end_date=?,
-                 start_time=?,
-                 end_time=?,
-                 hours=?,
-                 calculation_mode=?,
-                 note=?
-             WHERE id=?'
+             SET user_id = ?,
+                 start_date = ?,
+                 end_date = ?,
+                 start_time = ?,
+                 end_time = ?,
+                 hours = ?,
+                 calculation_mode = ?,
+                 note = ?
+             WHERE id = ?'
         )->execute([
             $targetUser,
             $start,
@@ -416,17 +631,17 @@ if ($action === 'save') {
 
         db()->prepare(
             'INSERT INTO leave_entries
-             (
-                 user_id,
-                 start_date,
-                 end_date,
-                 start_time,
-                 end_time,
-                 hours,
-                 calculation_mode,
-                 note
-             )
-             VALUES (?,?,?,?,?,?,?,?)'
+                (
+                    user_id,
+                    start_date,
+                    end_date,
+                    start_time,
+                    end_time,
+                    hours,
+                    calculation_mode,
+                    note
+                )
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $targetUser,
             $start,
@@ -447,30 +662,31 @@ if ($action === 'save') {
     exit;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Gewoon verlof verwijderen
+|--------------------------------------------------------------------------
+*/
+
 if ($action === 'delete') {
 
     $id = (int)($input['id'] ?? 0);
 
     $stmt = db()->prepare(
-        'SELECT user_id FROM leave_entries WHERE id=?'
+        'SELECT * FROM leave_entries WHERE id = ?'
     );
-
     $stmt->execute([$id]);
+
     $existing = $stmt->fetch();
 
     if (!$existing) {
         json_error('Verlofboeking niet gevonden.', 404);
     }
 
-    if (
-        $user['role'] !== 'admin' &&
-        (int)$existing['user_id'] !== (int)$user['id']
-    ) {
-        json_error('Geen toegang.', 403);
-    }
+    check_entry_access($user, $existing);
 
     db()->prepare(
-        'DELETE FROM leave_entries WHERE id=?'
+        'DELETE FROM leave_entries WHERE id = ?'
     )->execute([$id]);
 
     echo json_encode(['ok' => true]);
@@ -479,8 +695,14 @@ if ($action === 'delete') {
 
 json_error('Onbekende actie.');
 
-function dutch_holidays(int $year, int $endYear): array {
+/*
+|--------------------------------------------------------------------------
+| Nederlandse feestdagen
+|--------------------------------------------------------------------------
+*/
 
+function dutch_holidays(int $year, int $endYear): array
+{
     $all = [];
 
     for ($y = $year; $y <= $endYear; $y++) {
@@ -491,7 +713,7 @@ function dutch_holidays(int $year, int $endYear): array {
             new DateTimeZone('Europe/Amsterdam')
         );
 
-        $add = function(
+        $add = function (
             DateTimeImmutable $d,
             string $name
         ) use (&$all) {
@@ -518,6 +740,7 @@ function dutch_holidays(int $year, int $endYear): array {
         if (
             (int)(new DateTimeImmutable("$y-04-27"))->format('N') === 7
         ) {
+
             unset($all["$y-04-27"]);
 
             $add(

@@ -11,14 +11,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorEl = document.getElementById('formError');
     const deleteButton = document.getElementById('deleteLeave');
 
+    const entryType = document.getElementById('entryType');
+
+    const leaveFields = document.getElementById('leaveFields');
+    const creditFields = document.getElementById('creditFields');
+
     const startDateInput = document.getElementById('startDate');
     const endDateInput = document.getElementById('endDate');
     const startTimeInput = document.getElementById('startTime');
     const endTimeInput = document.getElementById('endTime');
 
+    const creditDateInput = document.getElementById('creditDate');
+    const creditMinutesInput = document.getElementById('creditMinutes');
+
     let calendar;
 
-    // Lokale datum formatteren.
+    // Datum omzetten naar YYYY-MM-DD.
     const localDate = (date) => {
 
         const d = new Date(date);
@@ -27,7 +35,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     };
 
-    // Automatisch of handmatig berekenen.
+    // Weergave aanpassen aan het soort boeking.
+    const setEntryTypeUI = () => {
+
+        const isCredit = entryType.value === 'time_credit';
+
+        leaveFields.classList.toggle('hidden', isCredit);
+        creditFields.classList.toggle('hidden', !isCredit);
+
+        startDateInput.required = !isCredit;
+        endDateInput.required = !isCredit;
+        startTimeInput.required = !isCredit;
+        endTimeInput.required = !isCredit;
+
+        creditDateInput.required = isCredit;
+        creditMinutesInput.required = isCredit;
+
+        if (isCredit) {
+
+            document.getElementById('dialogTitle').textContent =
+                'Tijd-voor-tijd toevoegen';
+
+        } else {
+
+            document.getElementById('dialogTitle').textContent =
+                'Verlof inplannen';
+
+        }
+
+    };
+
+    // Handmatige berekening tonen of verbergen.
     const setModeUI = () => {
 
         hoursWrap.classList.toggle(
@@ -37,9 +75,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     };
 
+    // Luisteren naar wijzigingen.
+    entryType.addEventListener('change', setEntryTypeUI);
     mode.addEventListener('change', setModeUI);
 
-    // Verzoek naar de API versturen.
+    // API-verzoek versturen.
     async function request(url, options = {}) {
 
         const response = await fetch(url, options);
@@ -54,40 +94,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Nieuw verlof openen.
+    // Nieuwe boeking openen.
     function openNew(start, end) {
 
         form.reset();
 
         document.getElementById('leaveId').value = '';
 
-        document.getElementById('dialogTitle').textContent =
-            'Verlof inplannen';
+        entryType.value = 'leave';
 
-        startDateInput.value =
-            start || localDate(new Date());
+        const today = localDate(new Date());
 
-        endDateInput.value =
-            end || start || localDate(new Date());
+        startDateInput.value = start || today;
+        endDateInput.value = end || start || today;
 
-        // Standaard werktijden.
+        creditDateInput.value = start || today;
+
         startTimeInput.value = '08:45';
         endTimeInput.value = '16:30';
 
-        // Medewerker instellen.
-        if (!window.APP_CONFIG.isAdmin) {
+        creditMinutesInput.value = 15;
 
-            const employee = document.getElementById('employeeId');
+        const employee = document.getElementById('employeeId');
 
-            if (employee) {
-                employee.value = window.APP_CONFIG.currentUserId;
-            }
-
+        if (employee && !window.APP_CONFIG.isAdmin) {
+            employee.value = window.APP_CONFIG.currentUserId;
         }
 
         mode.value = 'automatic';
 
         setModeUI();
+        setEntryTypeUI();
 
         errorEl.textContent = '';
 
@@ -97,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Bestaand verlof aanpassen.
+    // Bestaande boeking aanpassen.
     function openEdit(event) {
 
         const p = event.extendedProps || {};
@@ -108,30 +145,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('leaveId').value = event.id;
 
-        document.getElementById('dialogTitle').textContent =
-            'Verlof aanpassen';
-
-        startDateInput.value = event.startStr;
+        startDateInput.value = event.startStr.slice(0, 10);
 
         endDateInput.value = event.end
             ? localDate(new Date(event.end.getTime() - 86400000))
-            : event.startStr;
-
-        // Opgeslagen tijden ophalen.
-        // Oude boekingen zonder tijden krijgen de normale werktijden.
-        startTimeInput.value = p.start_time
-            ? p.start_time.substring(0, 5)
-            : '08:45';
-
-        endTimeInput.value = p.end_time
-            ? p.end_time.substring(0, 5)
-            : '16:30';
+            : event.startStr.slice(0, 10);
 
         document.getElementById('note').value = p.note || '';
-
-        mode.value = p.mode || 'automatic';
-
-        document.getElementById('hours').value = p.hours || 0;
 
         const employee = document.getElementById('employeeId');
 
@@ -139,9 +159,41 @@ document.addEventListener('DOMContentLoaded', () => {
             employee.value = p.user_id;
         }
 
+        if (p.entry_type === 'time_credit') {
+
+            entryType.value = 'time_credit';
+
+            creditDateInput.value = event.startStr.slice(0, 10);
+
+            creditMinutesInput.value = p.minutes || 15;
+
+        } else {
+
+            entryType.value = 'leave';
+
+            startTimeInput.value = p.start_time
+                ? p.start_time.substring(0, 5)
+                : '08:45';
+
+            endTimeInput.value = p.end_time
+                ? p.end_time.substring(0, 5)
+                : '16:30';
+
+            mode.value = p.mode || 'automatic';
+
+            document.getElementById('hours').value = p.hours || 0;
+
+        }
+
         setModeUI();
+        setEntryTypeUI();
 
         errorEl.textContent = '';
+
+        document.getElementById('dialogTitle').textContent =
+            p.entry_type === 'time_credit'
+                ? 'Tijd-voor-tijd aanpassen'
+                : 'Verlof aanpassen';
 
         deleteButton.classList.remove('hidden');
 
@@ -153,11 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
     calendar = new FullCalendar.Calendar(calendarEl, {
 
         locale: 'nl',
-
         firstDay: 1,
-
         initialView: 'dayGridMonth',
-
         height: 'auto',
 
         headerToolbar: {
@@ -174,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         selectable: true,
-
         selectMirror: true,
 
         events: async (info, success, failure) => {
@@ -195,7 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         },
 
-        // Meerdere dagen selecteren.
         select: (info) => {
 
             const end = new Date(info.end);
@@ -211,14 +258,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         },
 
-        // Eén dag selecteren.
         dateClick: (info) => {
 
             openNew(info.dateStr, info.dateStr);
 
         },
 
-        // Verlofboeking openen.
         eventClick: (info) => {
 
             if (info.event.extendedProps.holiday) return;
@@ -227,14 +272,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         },
 
-        // Feestdagen een tooltip geven.
         eventDidMount: (info) => {
+    if (info.event.extendedProps.holiday) {
+        info.el.title = info.event.title;
+        return;
+    }
 
-            if (info.event.extendedProps.holiday) {
-                info.el.title = info.event.title;
-            }
-
-        }
+    if (info.event.extendedProps.entry_type === 'time_credit') {
+        info.el.classList.add('time-credit-event');
+    }
+}
 
     });
 
@@ -256,44 +303,90 @@ document.addEventListener('DOMContentLoaded', () => {
         () => dialog.close()
     );
 
-    // Verlof opslaan.
+    // Boeking opslaan.
     form.addEventListener('submit', async (event) => {
 
         event.preventDefault();
 
         errorEl.textContent = '';
 
-        const payload = {
+        const isCredit = entryType.value === 'time_credit';
 
-            action: 'save',
-
-            csrf: window.APP_CONFIG.csrf,
-
-            id: Number(
-                document.getElementById('leaveId').value || 0
-            ),
-
-            start_date: startDateInput.value,
-
-            end_date: endDateInput.value,
-
-            start_time: startTimeInput.value,
-
-            end_time: endTimeInput.value,
-
-            calculation_mode: mode.value,
-
-            hours: document.getElementById('hours').value,
-
-            note: document.getElementById('note').value
-
-        };
-
-        // Medewerker meesturen voor beheerders.
         const employee = document.getElementById('employeeId');
 
+        const commonPayload = {
+            csrf: window.APP_CONFIG.csrf,
+            note: document.getElementById('note').value
+        };
+
         if (employee) {
-            payload.user_id = Number(employee.value);
+            commonPayload.user_id = Number(employee.value);
+        }
+
+        let payload;
+
+        if (isCredit) {
+
+            const minutes = Number(creditMinutesInput.value);
+
+            if (!Number.isInteger(minutes) || minutes < 15) {
+
+                errorEl.textContent =
+                    'Tijd-voor-tijd moet minimaal 15 minuten zijn.';
+
+                return;
+
+            }
+
+            if (!creditDateInput.value) {
+
+                errorEl.textContent =
+                    'Vul een datum in voor tijd-voor-tijd.';
+
+                return;
+
+            }
+
+            payload = {
+
+                ...commonPayload,
+
+                action: 'save_credit',
+
+                id: document.getElementById('leaveId').value,
+
+                work_date: creditDateInput.value,
+
+                minutes: minutes
+
+            };
+
+        } else {
+
+            payload = {
+
+                ...commonPayload,
+
+                action: 'save',
+
+                id: Number(
+                    document.getElementById('leaveId').value || 0
+                ),
+
+                start_date: startDateInput.value,
+
+                end_date: endDateInput.value,
+
+                start_time: startTimeInput.value,
+
+                end_time: endTimeInput.value,
+
+                calculation_mode: mode.value,
+
+                hours: document.getElementById('hours').value
+
+            };
+
         }
 
         try {
@@ -312,8 +405,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             dialog.close();
 
-            calendar.refetchEvents();
-
             window.location.reload();
 
         } catch (err) {
@@ -324,16 +415,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     });
 
-    // Verlof verwijderen.
+    // Boeking verwijderen.
     deleteButton.addEventListener('click', async () => {
 
-        if (
-            !confirm(
-                'Weet je zeker dat je deze verlofboeking wilt verwijderen?'
-            )
-        ) {
+        if (!confirm('Weet je zeker dat je deze boeking wilt verwijderen?')) {
             return;
         }
+
+        const id = document.getElementById('leaveId').value;
+
+        const isCredit = entryType.value === 'time_credit';
 
         try {
 
@@ -347,11 +438,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 body: JSON.stringify({
 
-                    action: 'delete',
+                    action: isCredit ? 'delete_credit' : 'delete',
 
-                    id: Number(
-                        document.getElementById('leaveId').value
-                    ),
+                    id: id,
 
                     csrf: window.APP_CONFIG.csrf
 
