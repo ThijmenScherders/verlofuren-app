@@ -227,12 +227,6 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
 
-    /*
-    |--------------------------------------------------------------------------
-    | Saldo van een specifiek kalenderjaar ophalen
-    |--------------------------------------------------------------------------
-    */
-
     if (isset($_GET['balance_year'])) {
 
         $year = filter_var(
@@ -248,12 +242,6 @@ if ($method === 'GET') {
         $nextYearStart = ($year + 1) . '-01-01';
 
         $annualAllowance = (float)$user['allowance_hours'];
-
-        /*
-        |--------------------------------------------------------------------------
-        | Opgenomen verlof van het geselecteerde jaar
-        |--------------------------------------------------------------------------
-        */
 
         $balanceStmt = db()->prepare(
             'SELECT COALESCE(SUM(hours), 0)
@@ -272,12 +260,6 @@ if ($method === 'GET') {
         ]);
 
         $used = (float)$balanceStmt->fetchColumn();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Verplichte brugdag van het geselecteerde jaar
-        |--------------------------------------------------------------------------
-        */
 
         $bridgeDays = mandatory_bridge_days($year, $year);
 
@@ -311,12 +293,6 @@ if ($method === 'GET') {
             $used += $bridgeHours;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Tijd-voor-tijd van het geselecteerde jaar
-        |--------------------------------------------------------------------------
-        */
-
         $creditStmt = db()->prepare(
             'SELECT COALESCE(SUM(minutes), 0)
              FROM time_credits
@@ -334,12 +310,6 @@ if ($method === 'GET') {
         $creditMinutes = (int)$creditStmt->fetchColumn();
 
         $creditHours = $creditMinutes / 60;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Totaal saldo berekenen
-        |--------------------------------------------------------------------------
-        */
 
         $totalAvailable = $annualAllowance + $creditHours;
         $remaining = $totalAvailable - $used;
@@ -365,12 +335,6 @@ if ($method === 'GET') {
 
         exit;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Gewone kalendergegevens ophalen
-    |--------------------------------------------------------------------------
-    */
 
     $start = (string)($_GET['start'] ?? date('Y-m-01'));
     $end = (string)($_GET['end'] ?? date('Y-m-t'));
@@ -411,58 +375,75 @@ if ($method === 'GET') {
 
     /*
     |--------------------------------------------------------------------------
-    | Verlof- en ziekteboekingen ophalen
+    | Verlof, ziekte, dokter en tandarts ophalen
     |--------------------------------------------------------------------------
     */
 
     foreach ($stmt->fetchAll() as $r) {
 
-        $isSick = $r['booking_type'] === 'sick';
+        $bookingType = $r['booking_type'];
 
-        if ($isSick) {
+        $prefix = $isAdmin ? $r['name'] . ' — ' : '';
+        $noteText = $r['note'] ? ' · ' . $r['note'] : '';
 
-            $title =
-                ($isAdmin ? $r['name'] . ' — ' : '') .
-                'Ziekte' .
-                ($r['note'] ? ' · ' . $r['note'] : '');
+        switch ($bookingType) {
 
-            $backgroundColor = '#000000';
-            $borderColor = '#000000';
+            case 'sick':
+                $title = $prefix . 'Ziekte' . $noteText;
+                $backgroundColor = '#000000';
+                $borderColor = '#000000';
+                break;
 
-        } else {
+            case 'doctor':
+                $title = $prefix . 'Doktersafspraak' . $noteText;
+                $backgroundColor = '#2563eb';
+                $borderColor = '#1d4ed8';
+                break;
 
-            $title =
-                ($isAdmin ? $r['name'] . ' — ' : '') .
-                number_format((float)$r['hours'], 2, ',', '.') .
-                ' uur verlof' .
-                ($r['note'] ? ' · ' . $r['note'] : '');
+            case 'dentist':
+                $title = $prefix . 'Tandartsafspraak' . $noteText;
+                $backgroundColor = '#0f766e';
+                $borderColor = '#115e59';
+                break;
 
-            $backgroundColor = '#dc2626';
-            $borderColor = '#b91c1c';
+            case 'leave':
+            default:
+                $title =
+                    $prefix .
+                    number_format((float)$r['hours'], 2, ',', '.') .
+                    ' uur verlof' .
+                    $noteText;
+
+                $backgroundColor = '#dc2626';
+                $borderColor = '#b91c1c';
+                break;
+        }
+
+        $classNames = [];
+
+        if ($bookingType === 'sick') {
+            $classNames[] = 'sick-event';
+        } elseif ($bookingType === 'doctor') {
+            $classNames[] = 'doctor-event';
+        } elseif ($bookingType === 'dentist') {
+            $classNames[] = 'dentist-event';
         }
 
         $events[] = [
             'id' => (string)$r['id'],
-
             'title' => $title,
-
             'start' => $r['start_date'],
-
             'end' => (new DateTimeImmutable($r['end_date']))
                 ->modify('+1 day')
                 ->format('Y-m-d'),
-
             'allDay' => true,
-
             'backgroundColor' => $backgroundColor,
             'borderColor' => $borderColor,
             'textColor' => '#ffffff',
-
-            // Deze class zorgt ervoor dat ziekteboekingen zwart worden.
-            'classNames' => $isSick ? ['sick-event'] : [],
+            'classNames' => $classNames,
 
             'extendedProps' => [
-                'entry_type' => $isSick ? 'sick' : 'leave',
+                'entry_type' => $bookingType,
                 'user_id' => (int)$r['user_id'],
                 'hours' => (float)$r['hours'],
                 'mode' => $r['calculation_mode'],
@@ -526,6 +507,8 @@ if ($method === 'GET') {
             'backgroundColor' => '#26965b',
             'borderColor' => '#26965b',
             'textColor' => '#ffffff',
+
+            'classNames' => ['time-credit-event'],
 
             'extendedProps' => [
                 'entry_type' => 'time_credit',
@@ -796,7 +779,7 @@ if ($action === 'delete_credit') {
 
 /*
 |--------------------------------------------------------------------------
-| Verlof of ziekte opslaan of aanpassen
+| Verlof, ziekte, dokter of tandarts opslaan of aanpassen
 |--------------------------------------------------------------------------
 */
 
@@ -817,9 +800,26 @@ if ($action === 'save') {
 
     $note = trim((string)($input['note'] ?? ''));
 
-    if (!in_array($bookingType, ['leave', 'sick'], true)) {
+    $allowedTypes = [
+        'leave',
+        'sick',
+        'doctor',
+        'dentist'
+    ];
+
+    if (!in_array($bookingType, $allowedTypes, true)) {
         json_error('Ongeldig type boeking.');
     }
+
+    $isSick = $bookingType === 'sick';
+
+    $isAppointment = in_array(
+        $bookingType,
+        ['doctor', 'dentist'],
+        true
+    );
+
+    $isNonLeave = $isSick || $isAppointment;
 
     if (!valid_date($start) || !valid_date($end)) {
         json_error('Kies een geldige begin- en einddatum.');
@@ -844,7 +844,16 @@ if ($action === 'save') {
         json_error('Ongeldige berekeningsmethode.');
     }
 
-    if ($startTime < '08:45' || $endTime > '16:30') {
+    /*
+    |--------------------------------------------------------------------------
+    | Werktijden controleren
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        !$isAppointment &&
+        ($startTime < '08:45' || $endTime > '16:30')
+    ) {
         json_error(
             'De tijden moeten binnen je normale werktijden vallen: 08:45 tot 16:30.'
         );
@@ -862,11 +871,11 @@ if ($action === 'save') {
 
     /*
     |--------------------------------------------------------------------------
-    | Ziekte kost geen verlofuren
+    | Ziekte, dokter en tandarts kosten geen verlofuren
     |--------------------------------------------------------------------------
     */
 
-    if ($bookingType === 'sick') {
+    if ($isNonLeave) {
 
         $hours = 0.0;
         $mode = 'automatic';
@@ -935,10 +944,16 @@ if ($action === 'save') {
         json_error('Deze verlofboeking bevat geen verlofuren.');
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Bestaande boeking aanpassen
+    |--------------------------------------------------------------------------
+    */
+
     if ($id > 0) {
 
         $stmt = db()->prepare(
-            'SELECT user_id FROM leave_entries WHERE id = ?'
+            'SELECT * FROM leave_entries WHERE id = ?'
         );
         $stmt->execute([$id]);
         $existing = $stmt->fetch();
@@ -980,6 +995,12 @@ if ($action === 'save') {
 
     } else {
 
+        /*
+        |--------------------------------------------------------------------------
+        | Nieuwe boeking toevoegen
+        |--------------------------------------------------------------------------
+        */
+
         db()->prepare(
             'INSERT INTO leave_entries
                 (
@@ -1018,7 +1039,7 @@ if ($action === 'save') {
 
 /*
 |--------------------------------------------------------------------------
-| Verlof of ziekte verwijderen
+| Verlof, ziekte, dokter of tandarts verwijderen
 |--------------------------------------------------------------------------
 */
 

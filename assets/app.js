@@ -26,12 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const creditDateInput = document.getElementById('creditDate');
     const creditMinutesInput = document.getElementById('creditMinutes');
 
-    // Vast jaarlijks verlofrecht.
     const ANNUAL_ALLOWANCE = 193.75;
 
     let calendar;
 
-    // Datum omzetten naar YYYY-MM-DD.
     const localDate = (date) => {
 
         const d = new Date(date);
@@ -40,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     };
 
-    // Getallen weergeven met Nederlandse notatie.
     const formatHours = (value) => {
 
         return Number(value).toLocaleString('nl-NL', {
@@ -50,7 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     };
 
-    // API-verzoek versturen.
     async function request(url, options = {}) {
 
         const response = await fetch(url, options);
@@ -65,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Saldo van het geselecteerde kalenderjaar ophalen.
     async function updateBalance(year) {
 
         try {
@@ -74,23 +69,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 `api.php?balance_year=${encodeURIComponent(year)}`
             );
 
-            const availableHours =
-                document.getElementById('availableHours');
+            const availableHours = document.getElementById('availableHours');
+            const usedHours = document.getElementById('usedHours');
+            const remainingHours = document.getElementById('remainingHours');
 
-            const usedHours =
-                document.getElementById('usedHours');
-
-            const remainingHours =
-                document.getElementById('remainingHours');
-
-            const availableDays =
-                document.getElementById('availableDays');
-
-            const usedDays =
-                document.getElementById('usedDays');
-
-            const remainingDays =
-                document.getElementById('remainingDays');
+            const availableDays = document.getElementById('availableDays');
+            const usedDays = document.getElementById('usedDays');
+            const remainingDays = document.getElementById('remainingDays');
 
             const remainingWrapper =
                 document.getElementById('remainingHoursWrapper');
@@ -106,10 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Beschikbaar verlof blijft altijd 193,75 uur.
             const totalAvailable = ANNUAL_ALLOWANCE;
 
-            // Opgenomen verlof en resterend saldo komen uit de API.
             const used = Number(data.used);
             const remaining = Number(data.remaining);
             const hoursPerDay = Number(data.hours_per_day);
@@ -123,15 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Ongeldige saldogegevens ontvangen.');
             }
 
-            const availableDaysValue =
-                totalAvailable / hoursPerDay;
-
-            const usedDaysValue =
-                used / hoursPerDay;
-
-            const remainingDaysValue =
-                remaining / hoursPerDay;
-
             availableHours.textContent =
                 formatHours(totalAvailable);
 
@@ -142,13 +116,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 formatHours(remaining);
 
             availableDays.textContent =
-                formatHours(availableDaysValue);
+                formatHours(totalAvailable / hoursPerDay);
 
             usedDays.textContent =
-                formatHours(usedDaysValue);
+                formatHours(used / hoursPerDay);
 
             remainingDays.textContent =
-                formatHours(remainingDaysValue);
+                formatHours(remaining / hoursPerDay);
 
             if (remainingWrapper) {
 
@@ -170,8 +144,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Weergave aanpassen aan het soort boeking.
     const setEntryTypeUI = () => {
 
-        const isCredit = entryType.value === 'time_credit';
-        const isSick = entryType.value === 'sick';
+        const type = entryType.value;
+
+        const isCredit = type === 'time_credit';
+        const isSick = type === 'sick';
+        const isAppointment = type === 'doctor' || type === 'dentist';
+
+        const isNonLeave = isCredit || isSick || isAppointment;
 
         leaveFields.classList.toggle('hidden', isCredit);
         creditFields.classList.toggle('hidden', !isCredit);
@@ -184,54 +163,47 @@ document.addEventListener('DOMContentLoaded', () => {
         creditDateInput.required = isCredit;
         creditMinutesInput.required = isCredit;
 
-        // Bij ziekte is een urenberekening niet nodig.
-        calculationWrap.classList.toggle(
-            'hidden',
-            isCredit || isSick
-        );
-        if (isSick) {
+        calculationWrap.classList.toggle('hidden', isNonLeave);
+
+        if (isNonLeave) {
             mode.value = 'automatic';
         }
 
-        mode.disabled = isSick;
+        mode.disabled = isNonLeave;
 
         hoursWrap.classList.toggle(
             'hidden',
-            isCredit || isSick || mode.value !== 'manual'
+            isNonLeave || mode.value !== 'manual'
         );
 
-        if (isCredit) {
+        const titles = {
+            leave: 'Verlof inplannen',
+            sick: 'Ziekte registreren',
+            time_credit: 'Tijd-voor-tijd toevoegen',
+            doctor: 'Doktersafspraak registreren',
+            dentist: 'Tandartsafspraak registreren'
+        };
 
-            document.getElementById('dialogTitle').textContent =
-                'Tijd-voor-tijd toevoegen';
-
-        } else if (isSick) {
-
-            document.getElementById('dialogTitle').textContent =
-                'Ziekte registreren';
-
-        } else {
-
-            document.getElementById('dialogTitle').textContent =
-                'Verlof inplannen';
-
-        }
+        document.getElementById('dialogTitle').textContent =
+            titles[type] || 'Boeking toevoegen';
 
     };
 
     // Handmatige berekening tonen of verbergen.
     const setModeUI = () => {
 
-        const isSick = entryType.value === 'sick';
+        const isNonLeave =
+            entryType.value === 'sick' ||
+            entryType.value === 'doctor' ||
+            entryType.value === 'dentist';
 
         hoursWrap.classList.toggle(
             'hidden',
-            isSick || mode.value !== 'manual'
+            isNonLeave || mode.value !== 'manual'
         );
 
     };
 
-    // Luisteren naar wijzigingen.
     entryType.addEventListener('change', setEntryTypeUI);
     mode.addEventListener('change', setModeUI);
 
@@ -296,8 +268,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } else {
 
-            entryType.value =
-                p.entry_type === 'sick' ? 'sick' : 'leave';
+            entryType.value = [
+                'leave',
+                'sick',
+                'doctor',
+                'dentist'
+            ].includes(p.entry_type)
+                ? p.entry_type
+                : 'leave';
 
             startDateInput.value = event.startStr.slice(0, 10);
 
@@ -332,12 +310,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         errorEl.textContent = '';
 
+        const titles = {
+            leave: 'Verlof aanpassen',
+            sick: 'Ziekte aanpassen',
+            time_credit: 'Tijd-voor-tijd aanpassen',
+            doctor: 'Doktersafspraak aanpassen',
+            dentist: 'Tandartsafspraak aanpassen'
+        };
+
         document.getElementById('dialogTitle').textContent =
-            p.entry_type === 'time_credit'
-                ? 'Tijd-voor-tijd aanpassen'
-                : p.entry_type === 'sick'
-                    ? 'Ziekte aanpassen'
-                    : 'Verlof aanpassen';
+            titles[p.entry_type] || 'Boeking aanpassen';
 
         deleteButton.classList.remove('hidden');
 
@@ -369,7 +351,6 @@ document.addEventListener('DOMContentLoaded', () => {
         selectable: true,
         selectMirror: true,
 
-        // Saldo bijwerken wanneer het kalenderjaar verandert.
         datesSet: (info) => {
 
             const selectedYear =
@@ -433,13 +414,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (info.event.extendedProps.entry_type === 'time_credit') {
+            const type = info.event.extendedProps.entry_type;
+
+            if (type === 'time_credit') {
                 info.el.classList.add('time-credit-event');
                 return;
             }
 
-            if (info.event.extendedProps.entry_type === 'sick') {
+            if (type === 'sick') {
                 info.el.classList.add('sick-event');
+                return;
+            }
+
+            if (type === 'doctor') {
+                info.el.classList.add('doctor-event');
+                return;
+            }
+
+            if (type === 'dentist') {
+                info.el.classList.add('dentist-event');
             }
 
         }
@@ -471,8 +464,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         errorEl.textContent = '';
 
-        const isCredit = entryType.value === 'time_credit';
-        const isSick = entryType.value === 'sick';
+        const type = entryType.value;
+
+        const isCredit = type === 'time_credit';
+        const isSick = type === 'sick';
+        const isAppointment = type === 'doctor' || type === 'dentist';
+
+        const isNonLeave = isSick || isAppointment;
 
         const employee = document.getElementById('employeeId');
 
@@ -535,7 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('leaveId').value || 0
                 ),
 
-                booking_type: isSick ? 'sick' : 'leave',
+                booking_type: type,
 
                 start_date: startDateInput.value,
 
@@ -545,9 +543,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 end_time: endTimeInput.value,
 
-                calculation_mode: isSick ? 'automatic' : mode.value,
+                calculation_mode: isNonLeave ? 'automatic' : mode.value,
 
-                hours: isSick ? 0 : document.getElementById('hours').value
+                hours: isNonLeave
+                    ? 0
+                    : document.getElementById('hours').value
 
             };
 

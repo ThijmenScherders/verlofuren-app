@@ -1,3 +1,4 @@
+
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
 :root {
@@ -179,9 +180,7 @@ h3 {
     background: #f8fafc;
 }
 
-/* =========================================
-   VERLOF OVERZICHT
-========================================= */
+/* Verlof overzicht */
 
 .stats {
     display: grid;
@@ -206,8 +205,6 @@ h3 {
     box-shadow: 0 10px 25px #0f172a10;
 }
 
-/* Gekleurde bovenrand */
-
 .stat-card::after {
     content: "";
     position: absolute;
@@ -228,8 +225,6 @@ h3 {
 .remaining-card::after {
     background: #10b981;
 }
-
-/* Bovenste gedeelte van de kaarten */
 
 .stat-card-top {
     display: flex;
@@ -273,8 +268,6 @@ h3 {
     margin: 0;
 }
 
-/* Uren */
-
 .stat-card .stat-value {
     display: flex;
     align-items: baseline;
@@ -300,8 +293,6 @@ h3 {
     letter-spacing: 0;
 }
 
-/* Dagen onder de uren */
-
 .stat-card .stat-meta {
     color: #64748b;
     font-size: .85rem;
@@ -314,8 +305,6 @@ h3 {
     font-weight: 700;
     margin: 0;
 }
-
-/* Negatief verlofsaldo */
 
 .stat-card .stat-value.negative,
 .stat-card .stat-value.negative small {
@@ -349,8 +338,6 @@ h3 {
     background: var(--primary);
 }
 
-/* Tijd voor tijd in de legenda */
-
 .time-credit-dot {
     background: #22c55e;
 }
@@ -359,16 +346,20 @@ h3 {
     background: #f59e0b;
 }
 
-/* Verplichte vrije dag in de legenda */
-
 .bridge-day-dot {
     background: #dc2626;
 }
 
-/* Ziekte in de legenda */
-
 .sick-dot {
     background: #000000;
+}
+
+.doctor-dot {
+    background: #2563eb;
+}
+
+.dentist-dot {
+    background: #0f766e;
 }
 
 /* Kalender */
@@ -420,11 +411,9 @@ h3 {
     font-size: .8rem;
 }
 
-/* Verlofafspraken: blauw */
+/* Algemene kalenderafspraken */
 
 .fc .fc-event {
-    background: #4338ca !important;
-    border: 1px solid #3730a3 !important;
     color: #ffffff !important;
     padding: 3px 5px;
     border-radius: 5px;
@@ -433,14 +422,19 @@ h3 {
     cursor: pointer;
 }
 
-/* Tekst binnen verlofafspraken */
-
 .fc .fc-event .fc-event-title,
 .fc .fc-event .fc-event-time {
     color: #ffffff !important;
 }
 
-/* Ziekteboekingen: zwart */
+/* Verlof: paars/blauw */
+
+.fc .fc-event:not(.sick-event):not(.doctor-event):not(.dentist-event):not(.time-credit-event):not(.mandatory-bridge-event):not(.holiday-event) {
+    background: #4338ca !important;
+    border: 1px solid #3730a3 !important;
+}
+
+/* Ziekte */
 
 .fc .fc-event.sick-event,
 .fc .fc-event.sick-event .fc-event-main {
@@ -455,31 +449,100 @@ h3 {
     font-weight: 700 !important;
 }
 
-/* Tijd-voor-tijdboekingen: groen */
+/* Dokter en tandarts: dezelfde vormgeving */
+
+.fc .fc-event.doctor-event,
+.fc .fc-event.dentist-event {
+    border-radius: 5px !important;
+    padding: 3px 5px !important;
+    font-size: .78rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+    line-height: normal !important;
+    overflow: hidden !important;
+}
+
+/* Doktersafspraak: blauw */
+
+.fc .fc-event.doctor-event {
+    background: #2563eb !important;
+    border: 1px solid #1d4ed8 !important;
+}
+
+/* Tandartsafspraak: teal */
+
+.fc .fc-event.dentist-event {
+    background: #0f766e !important;
+    border: 1px solid #115e59 !important;
+}
+
+/* Binnenste element: geen extra blok of rand */
+
+.fc .fc-event.doctor-event .fc-event-main,
+.fc .fc-event.dentist-event .fc-event-main {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    color: #ffffff !important;
+}
+
+/* Tekst bij dokter en tandarts */
+
+.fc .fc-event.doctor-event .fc-event-title,
+.fc .fc-event.doctor-event .fc-event-time,
+.fc .fc-event.dentist-event .fc-event-title,
+.fc .fc-event.dentist-event .fc-event-time {
+    color: #ffffff !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: .78rem !important;
+    font-weight: 600 !important;
+    line-height: normal !important;
+}
+
+/* Tijd-voor-tijd: groen */
 
 .fc .fc-event.time-credit-event {
     background: #22c55e !important;
     border: 1px solid #16a34a !important;
     color: #ffffff !important;
+    border-radius: 5px !important;
+    padding: 3px 5px !important;
+    font-size: .78rem !important;
+    font-weight: 600 !important;
+    box-sizing: border-box !important;
+    line-height: normal !important;
+    overflow: hidden !important;
 }
 
-/* Tekst binnen tijd-voor-tijdboekingen */
+/* Binnenste element: geen extra blok of rand */
+
+.fc .fc-event.time-credit-event .fc-event-main {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    color: #ffffff !important;
+}
+
+/* Tekst tijd-voor-tijd */
 
 .fc .fc-event.time-credit-event .fc-event-title,
 .fc .fc-event.time-credit-event .fc-event-time {
     color: #ffffff !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: .78rem !important;
     font-weight: 600 !important;
+    line-height: normal !important;
 }
 
 /* Verplichte vrije dag na Hemelvaartsdag: rood */
 
-.fc .fc-event.mandatory-bridge-event {
+.fc .fc-event.mandatory-bridge-event,
+.fc .fc-event.mandatory-bridge-event .fc-event-main {
     background: #dc2626 !important;
     border: 1px solid #b91c1c !important;
     color: #ffffff !important;
 }
-
-/* Tekst binnen verplichte vrije dag */
 
 .fc .fc-event.mandatory-bridge-event .fc-event-title,
 .fc .fc-event.mandatory-bridge-event .fc-event-time {
@@ -487,7 +550,7 @@ h3 {
     font-weight: 700 !important;
 }
 
-/* Nationale feestdagen als kleine labels */
+/* Nationale feestdagen */
 
 .fc .holiday-event {
     background: #f59e0b !important;
@@ -502,8 +565,6 @@ h3 {
     min-height: 0 !important;
     cursor: default !important;
 }
-
-/* Witte, dikgedrukte tekst bij feestdagen */
 
 .fc .holiday-event .fc-event-title,
 .fc .holiday-event .fc-event-main {
@@ -770,9 +831,7 @@ dialog form {
     margin: 5px 0;
 }
 
-/* =========================================
-   TABLET EN MOBIEL
-========================================= */
+/* Tablet en mobiel */
 
 @media (max-width: 760px) {
 
@@ -807,8 +866,6 @@ dialog form {
         padding: 10px 12px;
     }
 
-    /* Verlofoverzicht mobiel */
-
     .stats {
         grid-template-columns: 1fr;
         gap: 12px;
@@ -825,8 +882,6 @@ dialog form {
     .stat-card .stat-value {
         font-size: 1.8rem;
     }
-
-    /* Kalender mobiel */
 
     .calendar-card {
         padding: 10px;

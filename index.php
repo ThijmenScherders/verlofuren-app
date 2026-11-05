@@ -1,4 +1,3 @@
-
 <?php
 require_once __DIR__ . '/config.php';
 
@@ -12,7 +11,6 @@ $user = require_login();
 
 $currentYear = (int)date('Y');
 
-// Vast jaarlijks verlofrecht
 $annualAllowance = 193.75;
 
 $yearStart = $currentYear . '-01-01';
@@ -127,8 +125,6 @@ $creditHours = $creditMinutes / 60;
 |--------------------------------------------------------------------------
 */
 
-// Beschikbaar verlof blijft altijd 193,75 uur.
-// Tijd-voor-tijd telt alleen mee bij het resterende saldo.
 $totalAvailable = $annualAllowance;
 $remaining = $annualAllowance + $creditHours - $used;
 
@@ -223,10 +219,7 @@ if ($user['role'] === 'admin') {
 
             <strong class="stat-value">
                 <span id="availableHours">
-
                     <?= number_format($annualAllowance, 2, ',', '.') ?>
-
-                    <?= number_format($totalAvailable, 2, ',', '.') ?>
                 </span>
                 <small>uur</small>
             </strong>
@@ -299,6 +292,16 @@ if ($user['role'] === 'admin') {
         </span>
 
         <span>
+            <i class="dot" style="background-color: #2563eb;"></i>
+            Dokter
+        </span>
+
+        <span>
+            <i class="dot" style="background-color: #0f766e;"></i>
+            Tandarts
+        </span>
+
+        <span>
             <i class="dot time-credit-dot"></i>
             Tijd voor tijd
         </span>
@@ -330,7 +333,7 @@ if ($user['role'] === 'admin') {
         Een volledige werkdag is 7,75 uur, van 08:45 tot 16:30.
         Feestdagen worden niet van de automatische berekening afgetrokken.
         De vrijdag na Hemelvaartsdag wordt automatisch als verplichte vrije dag meegerekend.
-        Ziekteboekingen kosten geen verlofuren.
+        Ziekte, doktersafspraken en tandartsafspraken kosten geen verlofuren.
     </p>
 
 </main>
@@ -363,6 +366,8 @@ if ($user['role'] === 'admin') {
             <select id="entryType" required>
                 <option value="leave">Verlof</option>
                 <option value="sick">Ziek</option>
+                <option value="doctor">Dokter</option>
+                <option value="dentist">Tandarts</option>
                 <option value="time_credit">Tijd voor tijd</option>
             </select>
         </label>
@@ -435,7 +440,7 @@ if ($user['role'] === 'admin') {
             <p class="muted">
                 Normale werktijden: 08:45 tot 16:30 (7,75 uur).
                 Je kunt de tijden per verlofboeking aanpassen.
-                Bij ziekte worden geen verlofuren berekend.
+                Bij ziekte, dokter en tandarts worden geen verlofuren berekend.
             </p>
 
             <label id="calculationWrap">
