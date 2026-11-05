@@ -375,7 +375,7 @@ if ($method === 'GET') {
 
     /*
     |--------------------------------------------------------------------------
-    | Verlof, ziekte, dokter en tandarts ophalen
+    | Verlof, ziek, dokter en tandarts ophalen
     |--------------------------------------------------------------------------
     */
 
@@ -389,7 +389,7 @@ if ($method === 'GET') {
         switch ($bookingType) {
 
             case 'sick':
-                $title = $prefix . 'Ziekte' . $noteText;
+                $title = $prefix . 'Ziek' . $noteText;
                 $backgroundColor = '#000000';
                 $borderColor = '#000000';
                 break;
@@ -779,7 +779,7 @@ if ($action === 'delete_credit') {
 
 /*
 |--------------------------------------------------------------------------
-| Verlof, ziekte, dokter of tandarts opslaan of aanpassen
+| Verlof, ziek, dokter of tandarts opslaan of aanpassen
 |--------------------------------------------------------------------------
 */
 
@@ -871,7 +871,7 @@ if ($action === 'save') {
 
     /*
     |--------------------------------------------------------------------------
-    | Ziekte, dokter en tandarts kosten geen verlofuren
+    | Ziek, dokter en tandarts kosten geen verlofuren
     |--------------------------------------------------------------------------
     */
 
@@ -1039,7 +1039,7 @@ if ($action === 'save') {
 
 /*
 |--------------------------------------------------------------------------
-| Verlof, ziekte, dokter of tandarts verwijderen
+| Verlof, ziek, dokter of tandarts verwijderen
 |--------------------------------------------------------------------------
 */
 

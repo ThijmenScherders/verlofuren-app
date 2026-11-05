@@ -333,7 +333,7 @@ if ($user['role'] === 'admin') {
         Een volledige werkdag is 7,75 uur, van 08:45 tot 16:30.
         Feestdagen worden niet van de automatische berekening afgetrokken.
         De vrijdag na Hemelvaartsdag wordt automatisch als verplichte vrije dag meegerekend.
-        Ziekte, doktersafspraken en tandartsafspraken kosten geen verlofuren.
+        Ziek, doktersafspraken en tandartsafspraken kosten geen verlofuren.
     </p>
 
 </main>
@@ -440,7 +440,7 @@ if ($user['role'] === 'admin') {
             <p class="muted">
                 Normale werktijden: 08:45 tot 16:30 (7,75 uur).
                 Je kunt de tijden per verlofboeking aanpassen.
-                Bij ziekte, dokter en tandarts worden geen verlofuren berekend.
+                Bij ziek, dokter en tandarts worden geen verlofuren berekend.
             </p>
 
             <label id="calculationWrap">
