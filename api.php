@@ -80,26 +80,20 @@ function hours_for_range(
         }
 
         if ($start === $end) {
-
             $minutes = working_minutes($startTime, $endTime);
             $total += min($minutes / 60, $scheduledHours);
-
             continue;
         }
 
         if ($date === $start) {
-
             $minutes = working_minutes($startTime, '16:30');
             $total += min($minutes / 60, $scheduledHours);
-
             continue;
         }
 
         if ($date === $end) {
-
             $minutes = working_minutes('08:45', $endTime);
             $total += min($minutes / 60, $scheduledHours);
-
             continue;
         }
 
@@ -135,6 +129,34 @@ function check_entry_access(array $user, array $entry): void
     ) {
         json_error('Geen toegang.', 403);
     }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Vrijdag na Hemelvaartsdag berekenen
+|--------------------------------------------------------------------------
+*/
+
+function mandatory_bridge_days(int $year, int $endYear): array
+{
+    $days = [];
+
+    for ($y = $year; $y <= $endYear; $y++) {
+
+        $easter = new DateTimeImmutable('@' . easter_date($y));
+
+        $easter = $easter->setTimezone(
+            new DateTimeZone('Europe/Amsterdam')
+        );
+
+        $ascension = $easter->modify('+39 days');
+        $bridgeDay = $ascension->modify('+1 day');
+
+        $days[$bridgeDay->format('Y-m-d')] =
+            'Verplichte vrije dag na Hemelvaartsdag';
+    }
+
+    return $days;
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -203,8 +225,9 @@ if ($method === 'GET') {
 
             'allDay' => true,
 
-            'backgroundColor' => '#3978c5',
-            'borderColor' => '#3978c5',
+           'backgroundColor' => '#dc2626',
+           'borderColor' => '#b91c1c',
+           'textColor' => '#ffffff',
 
             'extendedProps' => [
                 'entry_type' => 'leave',
@@ -300,6 +323,67 @@ if ($method === 'GET') {
         }
     }
 
+    // Verplichte brugdagen toevoegen.
+    $bridgeDays = mandatory_bridge_days(
+        (int)substr($start, 0, 4),
+        (int)substr($end, 0, 4)
+    );
+
+    if ($isAdmin) {
+
+        $employeeStmt = db()->query(
+            'SELECT id, name FROM users ORDER BY name'
+        );
+
+        $calendarEmployees = $employeeStmt->fetchAll();
+
+    } else {
+
+        $calendarEmployees = [[
+            'id' => $user['id'],
+            'name' => $user['name']
+        ]];
+    }
+
+    foreach ($bridgeDays as $date => $name) {
+
+        if ($date < $start || $date > $end) {
+            continue;
+        }
+
+        foreach ($calendarEmployees as $employee) {
+
+            $events[] = [
+                'id' => 'bridge-' . $employee['id'] . '-' . $date,
+
+                'title' =>
+                    ($isAdmin ? $employee['name'] . ' — ' : '') .
+                    $name,
+
+                'start' => $date,
+
+                'end' => (new DateTimeImmutable($date))
+                    ->modify('+1 day')
+                    ->format('Y-m-d'),
+
+                'allDay' => true,
+
+                'backgroundColor' => '#7c3aed',
+                'borderColor' => '#6d28d9',
+                'textColor' => '#ffffff',
+
+                'classNames' => ['mandatory-bridge-event'],
+                'editable' => false,
+
+                'extendedProps' => [
+                    'holiday' => true,
+                    'mandatory_bridge' => true,
+                    'user_id' => (int)$employee['id']
+                ]
+            ];
+        }
+    }
+
     echo json_encode($events, JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -344,6 +428,7 @@ if ($action === 'save_credit') {
     $targetUser = get_target_user($user, $input);
 
     $workDate = (string)($input['work_date'] ?? '');
+
     $minutes = filter_var(
         $input['minutes'] ?? null,
         FILTER_VALIDATE_INT
@@ -740,7 +825,6 @@ function dutch_holidays(int $year, int $endYear): array
         if (
             (int)(new DateTimeImmutable("$y-04-27"))->format('N') === 7
         ) {
-
             unset($all["$y-04-27"]);
 
             $add(

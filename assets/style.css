@@ -249,6 +249,11 @@ h3 {
     background: #f59e0b;
 }
 
+/* Verplichte vrije dag in de legenda */
+.bridge-day-dot {
+    background: #dc2626;
+}
+
 .calendar-card {
     padding: 22px;
 }
@@ -321,6 +326,20 @@ h3 {
 .fc .fc-event.time-credit-event .fc-event-time {
     color: #ffffff !important;
     font-weight: 600 !important;
+}
+
+/* Verplichte vrije dag na Hemelvaartsdag: rood */
+.fc .fc-event.mandatory-bridge-event {
+    background: #dc2626 !important;
+    border: 1px solid #b91c1c !important;
+    color: #ffffff !important;
+}
+
+/* Tekst binnen verplichte vrije dag */
+.fc .fc-event.mandatory-bridge-event .fc-event-title,
+.fc .fc-event.mandatory-bridge-event .fc-event-time {
+    color: #ffffff !important;
+    font-weight: 700 !important;
 }
 
 /* Nationale feestdagen als kleine labels */

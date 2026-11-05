@@ -3,7 +3,31 @@ require_once __DIR__ . '/config.php';
 
 $user = require_login();
 
-// Opgenomen verlofuren ophalen
+/*
+|--------------------------------------------------------------------------
+| Brugdag na Hemelvaartsdag berekenen
+|--------------------------------------------------------------------------
+*/
+
+function get_bridge_day(int $year): string
+{
+    $easter = new DateTimeImmutable('@' . easter_date($year));
+
+    $easter = $easter->setTimezone(
+        new DateTimeZone('Europe/Amsterdam')
+    );
+
+    return $easter
+        ->modify('+40 days')
+        ->format('Y-m-d');
+}
+
+/*
+|--------------------------------------------------------------------------
+| Opgenomen verlofuren ophalen
+|--------------------------------------------------------------------------
+*/
+
 $balanceStmt = db()->prepare(
     'SELECT COALESCE(SUM(hours), 0)
      FROM leave_entries
@@ -13,7 +37,49 @@ $balanceStmt = db()->prepare(
 $balanceStmt->execute([$user['id']]);
 $used = (float)$balanceStmt->fetchColumn();
 
-// Tijd-voor-tijdminuten ophalen
+/*
+|--------------------------------------------------------------------------
+| Automatische brugdag voor het huidige jaar
+|--------------------------------------------------------------------------
+*/
+
+$currentYear = (int)date('Y');
+$bridgeDate = get_bridge_day($currentYear);
+
+$bridgeHours = (float)$user['leave_day_hours'];
+
+if ($bridgeHours <= 0) {
+    $bridgeHours = 7.75;
+}
+
+// Controleer of er al een verlofboeking over de brugdag loopt.
+$bridgeCheck = db()->prepare(
+    'SELECT COUNT(*)
+     FROM leave_entries
+     WHERE user_id = ?
+       AND start_date <= ?
+       AND end_date >= ?'
+);
+
+$bridgeCheck->execute([
+    $user['id'],
+    $bridgeDate,
+    $bridgeDate
+]);
+
+$bridgeAlreadyBooked = (int)$bridgeCheck->fetchColumn() > 0;
+
+// Als er nog geen verlofboeking overheen loopt, tellen we de brugdag mee.
+if (!$bridgeAlreadyBooked) {
+    $used += $bridgeHours;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Tijd-voor-tijdminuten ophalen
+|--------------------------------------------------------------------------
+*/
+
 $creditStmt = db()->prepare(
     'SELECT COALESCE(SUM(minutes), 0)
      FROM time_credits
@@ -25,7 +91,12 @@ $creditMinutes = (int)$creditStmt->fetchColumn();
 
 $creditHours = $creditMinutes / 60;
 
-// Totaal beschikbaar saldo berekenen
+/*
+|--------------------------------------------------------------------------
+| Totaal beschikbaar saldo berekenen
+|--------------------------------------------------------------------------
+*/
+
 $totalAvailable = (float)$user['allowance_hours'] + $creditHours;
 $remaining = $totalAvailable - $used;
 
@@ -169,6 +240,11 @@ if ($user['role'] === 'admin') {
             Feestdag
         </span>
 
+        <span>
+            <i class="dot" style="background:#dc2626"></i>
+            Verplichte vrije dag
+        </span>
+
         <span class="muted">
             Klik op een boeking om deze te bekijken of aan te passen.
         </span>
@@ -182,6 +258,7 @@ if ($user['role'] === 'admin') {
         Automatische berekening gebruikt je werkrooster.
         Een volledige werkdag is 7,75 uur, van 08:45 tot 16:30.
         Feestdagen worden niet van de automatische berekening afgetrokken.
+        De vrijdag na Hemelvaartsdag wordt automatisch als verplichte vrije dag meegerekend.
     </p>
 
 </main>
