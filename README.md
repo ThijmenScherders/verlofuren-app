@@ -51,7 +51,7 @@ Voor een echte openbare server: gebruik HTTPS, stel een sterk databasewachtwoord
 
 
  1* het  beschikbare verlof  vastzetten (193.75 & 25 dagen) (Done!!)
- 2* tandarts / dokter toevoegen   (Mag niet van verlof uren af!!!)
+ 2* tandarts / dokter toevoegen   (Mag niet van verlof uren af!!!) (Done !!!)
  3* specialist (Mag niet van verlof uren af!!!)
  4* Uitbetalen (Datum kunnen kiezen dat er uren van resterende saldo worden afgeboekt)
  5* Bij de resterende saldo het jaartal bij zetten.
@@ -61,7 +61,7 @@ Voor een echte openbare server: gebruik HTTPS, stel een sterk databasewachtwoord
  8* Verlof aanvraag doen bij manager van de afdelingen  manager moet akkord geven
 
 
-Must= have = 1 (Done) + 2 + 3 + 5
+Must= have = 1 (Done) + 2 (Done) + 3 + 5
 Could have = 4 + 6 + 7 + 8
 
 Can have = 
