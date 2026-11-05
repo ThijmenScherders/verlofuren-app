@@ -159,15 +159,160 @@ function mandatory_bridge_days(int $year, int $endYear): array
     return $days;
 }
 
-$method = $_SERVER['REQUEST_METHOD'];
-
 /*
 |--------------------------------------------------------------------------
-| GET: kalendergegevens ophalen
+| GET: kalendergegevens en jaarsaldo ophalen
 |--------------------------------------------------------------------------
 */
 
+$method = $_SERVER['REQUEST_METHOD'];
+
 if ($method === 'GET') {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Saldo van een specifiek kalenderjaar ophalen
+    |--------------------------------------------------------------------------
+    |
+    | Voorbeeld:
+    | api.php?balance_year=2027
+    |
+    */
+
+    if (isset($_GET['balance_year'])) {
+
+        $year = filter_var(
+            $_GET['balance_year'],
+            FILTER_VALIDATE_INT
+        );
+
+        if ($year === false || $year < 2000 || $year > 2200) {
+            json_error('Ongeldig kalenderjaar.');
+        }
+
+        $yearStart = $year . '-01-01';
+        $nextYearStart = ($year + 1) . '-01-01';
+
+        $annualAllowance = (float)$user['allowance_hours'];
+
+        /*
+        |--------------------------------------------------------------------------
+        | Opgenomen verlof van het geselecteerde jaar
+        |--------------------------------------------------------------------------
+        */
+
+        $balanceStmt = db()->prepare(
+            'SELECT COALESCE(SUM(hours), 0)
+             FROM leave_entries
+             WHERE user_id = ?
+               AND start_date >= ?
+               AND start_date < ?'
+        );
+
+        $balanceStmt->execute([
+            $user['id'],
+            $yearStart,
+            $nextYearStart
+        ]);
+
+        $used = (float)$balanceStmt->fetchColumn();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Verplichte brugdag van het geselecteerde jaar
+        |--------------------------------------------------------------------------
+        */
+
+        $bridgeDays = mandatory_bridge_days($year, $year);
+
+        $bridgeDate = array_key_first($bridgeDays);
+
+        $bridgeHours = (float)$user['leave_day_hours'];
+
+        if ($bridgeHours <= 0) {
+            $bridgeHours = 7.75;
+        }
+
+        $bridgeCheck = db()->prepare(
+            'SELECT COUNT(*)
+             FROM leave_entries
+             WHERE user_id = ?
+               AND start_date <= ?
+               AND end_date >= ?'
+        );
+
+        $bridgeCheck->execute([
+            $user['id'],
+            $bridgeDate,
+            $bridgeDate
+        ]);
+
+        $bridgeAlreadyBooked = (int)$bridgeCheck->fetchColumn() > 0;
+
+        if (!$bridgeAlreadyBooked) {
+            $used += $bridgeHours;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Tijd-voor-tijd van het geselecteerde jaar
+        |--------------------------------------------------------------------------
+        */
+
+        $creditStmt = db()->prepare(
+            'SELECT COALESCE(SUM(minutes), 0)
+             FROM time_credits
+             WHERE user_id = ?
+               AND work_date >= ?
+               AND work_date < ?'
+        );
+
+        $creditStmt->execute([
+            $user['id'],
+            $yearStart,
+            $nextYearStart
+        ]);
+
+        $creditMinutes = (int)$creditStmt->fetchColumn();
+
+        $creditHours = $creditMinutes / 60;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Totaal saldo berekenen
+        |--------------------------------------------------------------------------
+        */
+
+        $totalAvailable = $annualAllowance + $creditHours;
+        $remaining = $totalAvailable - $used;
+
+        $hoursPerDay = (float)$user['leave_day_hours'];
+
+        if ($hoursPerDay <= 0) {
+            $hoursPerDay = 7.75;
+        }
+
+        echo json_encode([
+            'year' => $year,
+            'annual_allowance' => round($annualAllowance, 2),
+            'credit_hours' => round($creditHours, 2),
+            'total_available' => round($totalAvailable, 2),
+            'used' => round($used, 2),
+            'remaining' => round($remaining, 2),
+            'hours_per_day' => round($hoursPerDay, 2),
+            'available_days' => round($totalAvailable / $hoursPerDay, 2),
+            'used_days' => round($used / $hoursPerDay, 2),
+            'remaining_days' => round($remaining / $hoursPerDay, 2)
+        ], JSON_UNESCAPED_UNICODE);
+
+        exit;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gewone kalendergegevens ophalen
+    |--------------------------------------------------------------------------
+    */
 
     $start = (string)($_GET['start'] ?? date('Y-m-01'));
     $end = (string)($_GET['end'] ?? date('Y-m-t'));
@@ -225,9 +370,9 @@ if ($method === 'GET') {
 
             'allDay' => true,
 
-           'backgroundColor' => '#dc2626',
-           'borderColor' => '#b91c1c',
-           'textColor' => '#ffffff',
+            'backgroundColor' => '#dc2626',
+            'borderColor' => '#b91c1c',
+            'textColor' => '#ffffff',
 
             'extendedProps' => [
                 'entry_type' => 'leave',
@@ -242,7 +387,12 @@ if ($method === 'GET') {
         ];
     }
 
-    // Tijd-voor-tijdboekingen.
+    /*
+    |--------------------------------------------------------------------------
+    | Tijd-voor-tijdboekingen ophalen
+    |--------------------------------------------------------------------------
+    */
+
     $creditSql = 'SELECT
                     t.id,
                     t.user_id,
@@ -300,7 +450,12 @@ if ($method === 'GET') {
         ];
     }
 
-    // Nationale feestdagen toevoegen.
+    /*
+    |--------------------------------------------------------------------------
+    | Nationale feestdagen toevoegen
+    |--------------------------------------------------------------------------
+    */
+
     foreach (
         dutch_holidays(
             (int)substr($start, 0, 4),
@@ -323,7 +478,12 @@ if ($method === 'GET') {
         }
     }
 
-    // Verplichte brugdagen toevoegen.
+    /*
+    |--------------------------------------------------------------------------
+    | Verplichte brugdagen toevoegen
+    |--------------------------------------------------------------------------
+    */
+
     $bridgeDays = mandatory_bridge_days(
         (int)substr($start, 0, 4),
         (int)substr($end, 0, 4)

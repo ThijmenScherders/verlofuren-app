@@ -35,6 +35,132 @@ document.addEventListener('DOMContentLoaded', () => {
 
     };
 
+    // Getallen weergeven met Nederlandse notatie.
+    const formatHours = (value) => {
+
+        return Number(value).toLocaleString('nl-NL', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+    };
+
+    // API-verzoek versturen.
+    async function request(url, options = {}) {
+
+        const response = await fetch(url, options);
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Er ging iets mis.');
+        }
+
+        return data;
+
+    }
+
+    // Saldo van het geselecteerde kalenderjaar ophalen.
+    async function updateBalance(year) {
+
+        try {
+
+            const data = await request(
+                `api.php?balance_year=${encodeURIComponent(year)}`
+            );
+
+            const availableHours =
+                document.getElementById('availableHours');
+
+            const usedHours =
+                document.getElementById('usedHours');
+
+            const remainingHours =
+                document.getElementById('remainingHours');
+
+            const availableDays =
+                document.getElementById('availableDays');
+
+            const usedDays =
+                document.getElementById('usedDays');
+
+            const remainingDays =
+                document.getElementById('remainingDays');
+
+            const remainingWrapper =
+                document.getElementById('remainingHoursWrapper');
+
+            if (
+                !availableHours ||
+                !usedHours ||
+                !remainingHours ||
+                !availableDays ||
+                !usedDays ||
+                !remainingDays
+            ) {
+                return;
+            }
+
+            // PHP gebruikt snake_case.
+            const totalAvailable = Number(data.total_available);
+            const used = Number(data.used);
+            const remaining = Number(data.remaining);
+            const hoursPerDay = Number(data.hours_per_day);
+
+            if (
+                !Number.isFinite(totalAvailable) ||
+                !Number.isFinite(used) ||
+                !Number.isFinite(remaining) ||
+                !Number.isFinite(hoursPerDay) ||
+                hoursPerDay <= 0
+            ) {
+                throw new Error('Ongeldige saldogegevens ontvangen.');
+            }
+
+            const availableDaysValue =
+                totalAvailable / hoursPerDay;
+
+            const usedDaysValue =
+                used / hoursPerDay;
+
+            const remainingDaysValue =
+                remaining / hoursPerDay;
+
+            availableHours.textContent =
+                formatHours(totalAvailable);
+
+            usedHours.textContent =
+                formatHours(used);
+
+            remainingHours.textContent =
+                formatHours(remaining);
+
+            availableDays.textContent =
+                formatHours(availableDaysValue);
+
+            usedDays.textContent =
+                formatHours(usedDaysValue);
+
+            remainingDays.textContent =
+                formatHours(remainingDaysValue);
+
+            if (remainingWrapper) {
+
+                remainingWrapper.classList.toggle(
+                    'negative',
+                    remaining < 0
+                );
+
+            }
+
+        } catch (err) {
+
+            console.error('Saldo ophalen mislukt:', err);
+
+        }
+
+    }
+
     // Weergave aanpassen aan het soort boeking.
     const setEntryTypeUI = () => {
 
@@ -78,21 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Luisteren naar wijzigingen.
     entryType.addEventListener('change', setEntryTypeUI);
     mode.addEventListener('change', setModeUI);
-
-    // API-verzoek versturen.
-    async function request(url, options = {}) {
-
-        const response = await fetch(url, options);
-
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Er ging iets mis.');
-        }
-
-        return data;
-
-    }
 
     // Nieuwe boeking openen.
     function openNew(start, end) {
@@ -145,20 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('leaveId').value = event.id;
 
-        startDateInput.value = event.startStr.slice(0, 10);
-
-        endDateInput.value = event.end
-            ? localDate(new Date(event.end.getTime() - 86400000))
-            : event.startStr.slice(0, 10);
-
-        document.getElementById('note').value = p.note || '';
-
-        const employee = document.getElementById('employeeId');
-
-        if (employee && p.user_id) {
-            employee.value = p.user_id;
-        }
-
         if (p.entry_type === 'time_credit') {
 
             entryType.value = 'time_credit';
@@ -170,6 +267,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
 
             entryType.value = 'leave';
+
+            startDateInput.value = event.startStr.slice(0, 10);
+
+            endDateInput.value = event.end
+                ? localDate(new Date(event.end.getTime() - 86400000))
+                : event.startStr.slice(0, 10);
 
             startTimeInput.value = p.start_time
                 ? p.start_time.substring(0, 5)
@@ -183,6 +286,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.getElementById('hours').value = p.hours || 0;
 
+        }
+
+        document.getElementById('note').value = p.note || '';
+
+        const employee = document.getElementById('employeeId');
+
+        if (employee && p.user_id) {
+            employee.value = p.user_id;
         }
 
         setModeUI();
@@ -224,6 +335,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         selectable: true,
         selectMirror: true,
+
+        // Saldo bijwerken wanneer het kalenderjaar verandert.
+        datesSet: (info) => {
+
+            const selectedYear =
+                info.view.calendar.getDate().getFullYear();
+
+            updateBalance(selectedYear);
+
+        },
 
         events: async (info, success, failure) => {
 
@@ -273,15 +394,17 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         eventDidMount: (info) => {
-    if (info.event.extendedProps.holiday) {
-        info.el.title = info.event.title;
-        return;
-    }
 
-    if (info.event.extendedProps.entry_type === 'time_credit') {
-        info.el.classList.add('time-credit-event');
-    }
-}
+            if (info.event.extendedProps.holiday) {
+                info.el.title = info.event.title;
+                return;
+            }
+
+            if (info.event.extendedProps.entry_type === 'time_credit') {
+                info.el.classList.add('time-credit-event');
+            }
+
+        }
 
     });
 
