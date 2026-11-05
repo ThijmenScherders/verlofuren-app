@@ -1,3 +1,4 @@
+
 document.addEventListener('DOMContentLoaded', () => {
 
     const calendarEl = document.getElementById('calendar');
@@ -24,6 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const creditDateInput = document.getElementById('creditDate');
     const creditMinutesInput = document.getElementById('creditMinutes');
+
+    // Vast jaarlijks verlofrecht.
+    const ANNUAL_ALLOWANCE = 193.75;
 
     let calendar;
 
@@ -102,13 +106,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const totalAvailable = Number(data.total_available);
+            // Beschikbaar verlof blijft altijd 193,75 uur.
+            const totalAvailable = ANNUAL_ALLOWANCE;
+
+            // Opgenomen verlof en resterend saldo komen uit de API.
             const used = Number(data.used);
             const remaining = Number(data.remaining);
             const hoursPerDay = Number(data.hours_per_day);
 
             if (
-                !Number.isFinite(totalAvailable) ||
                 !Number.isFinite(used) ||
                 !Number.isFinite(remaining) ||
                 !Number.isFinite(hoursPerDay) ||
@@ -183,7 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
             'hidden',
             isCredit || isSick
         );
-
         if (isSick) {
             mode.value = 'automatic';
         }
@@ -327,22 +332,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         errorEl.textContent = '';
 
-        if (p.entry_type === 'time_credit') {
-
-            document.getElementById('dialogTitle').textContent =
-                'Tijd-voor-tijd aanpassen';
-
-        } else if (p.entry_type === 'sick') {
-
-            document.getElementById('dialogTitle').textContent =
-                'Ziekte aanpassen';
-
-        } else {
-
-            document.getElementById('dialogTitle').textContent =
-                'Verlof aanpassen';
-
-        }
+        document.getElementById('dialogTitle').textContent =
+            p.entry_type === 'time_credit'
+                ? 'Tijd-voor-tijd aanpassen'
+                : p.entry_type === 'sick'
+                    ? 'Ziekte aanpassen'
+                    : 'Verlof aanpassen';
 
         deleteButton.classList.remove('hidden');
 
@@ -440,6 +435,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (info.event.extendedProps.entry_type === 'time_credit') {
                 info.el.classList.add('time-credit-event');
+                return;
+            }
+
+            if (info.event.extendedProps.entry_type === 'sick') {
+                info.el.classList.add('sick-event');
             }
 
         }
@@ -547,9 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 calculation_mode: isSick ? 'automatic' : mode.value,
 
-                hours: isSick
-                    ? 0
-                    : document.getElementById('hours').value
+                hours: isSick ? 0 : document.getElementById('hours').value
 
             };
 

@@ -11,7 +11,9 @@ $user = require_login();
 */
 
 $currentYear = (int)date('Y');
-$annualAllowance = (float)$user['allowance_hours'];
+
+// Vast jaarlijks verlofrecht
+$annualAllowance = 193.75;
 
 $yearStart = $currentYear . '-01-01';
 $nextYearStart = ($currentYear + 1) . '-01-01';
@@ -125,8 +127,10 @@ $creditHours = $creditMinutes / 60;
 |--------------------------------------------------------------------------
 */
 
-$totalAvailable = $annualAllowance + $creditHours;
-$remaining = $totalAvailable - $used;
+// Beschikbaar verlof blijft altijd 193,75 uur.
+// Tijd-voor-tijd telt alleen mee bij het resterende saldo.
+$totalAvailable = $annualAllowance;
+$remaining = $annualAllowance + $creditHours - $used;
 
 $hoursPerDay = (float)$user['leave_day_hours'];
 
@@ -219,6 +223,9 @@ if ($user['role'] === 'admin') {
 
             <strong class="stat-value">
                 <span id="availableHours">
+
+                    <?= number_format($annualAllowance, 2, ',', '.') ?>
+
                     <?= number_format($totalAvailable, 2, ',', '.') ?>
                 </span>
                 <small>uur</small>
