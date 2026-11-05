@@ -469,8 +469,8 @@ h3 {
 /* Nationale feestdagen als kleine labels */
 
 .fc .holiday-event {
-    background: #4338ca !important;
-    border: 1px solid #3730a3 !important;
+    background: #f59e0b !important;
+    border: 1px solid #d97706 !important;
     color: #ffffff !important;
     padding: 2px 5px !important;
     border-radius: 5px !important;
@@ -483,7 +483,6 @@ h3 {
 }
 
 /* Witte, dikgedrukte tekst bij feestdagen */
-
 .fc .holiday-event .fc-event-title,
 .fc .holiday-event .fc-event-main {
     color: #ffffff !important;
