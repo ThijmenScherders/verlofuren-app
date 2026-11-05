@@ -1,5 +1,7 @@
+
 <?php
-declare(strict_types=1);
+
+
 
 const DB_HOST = '127.0.0.1';
 const DB_NAME = 'verlofuren';
@@ -39,7 +41,11 @@ function db(): PDO {
 }
 
 function e(?string $value): string {
-    return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return htmlspecialchars(
+        $value ?? '',
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
 }
 
 function csrf_token(): string {
@@ -62,10 +68,23 @@ function verify_csrf(): void {
 function current_user(): ?array {
     if (!empty($_SESSION['user_id'])) {
         $stmt = db()->prepare(
-            'SELECT id,name,email,role,allowance_hours,leave_day_hours,
-            monday_hours,tuesday_hours,wednesday_hours,thursday_hours,
-            friday_hours,saturday_hours,sunday_hours
-            FROM users WHERE id = ?'
+            'SELECT
+                id,
+                name,
+                email,
+                role,
+                work_number,
+                allowance_hours,
+                leave_day_hours,
+                monday_hours,
+                tuesday_hours,
+                wednesday_hours,
+                thursday_hours,
+                friday_hours,
+                saturday_hours,
+                sunday_hours
+             FROM users
+             WHERE id = ?'
         );
 
         $stmt->execute([$_SESSION['user_id']]);
@@ -80,10 +99,15 @@ function current_user(): ?array {
 
     $cookie = $_COOKIE[REMEMBER_COOKIE] ?? '';
 
-    if (is_string($cookie) && preg_match('/^[a-f0-9]{64}$/', $cookie)) {
+    if (
+        is_string($cookie) &&
+        preg_match('/^[a-f0-9]{64}$/', $cookie)
+    ) {
         $stmt = db()->prepare(
-            'SELECT id FROM users
-             WHERE remember_token_hash = ? AND remember_expires > NOW()'
+            'SELECT id
+             FROM users
+             WHERE remember_token_hash = ?
+               AND remember_expires > NOW()'
         );
 
         $stmt->execute([hash('sha256', $cookie)]);
@@ -94,10 +118,23 @@ function current_user(): ?array {
             $_SESSION['user_id'] = (int)$row['id'];
 
             $stmt = db()->prepare(
-                'SELECT id,name,email,role,allowance_hours,leave_day_hours,
-                monday_hours,tuesday_hours,wednesday_hours,thursday_hours,
-                friday_hours,saturday_hours,sunday_hours
-                FROM users WHERE id = ?'
+                'SELECT
+                    id,
+                    name,
+                    email,
+                    role,
+                    work_number,
+                    allowance_hours,
+                    leave_day_hours,
+                    monday_hours,
+                    tuesday_hours,
+                    wednesday_hours,
+                    thursday_hours,
+                    friday_hours,
+                    saturday_hours,
+                    sunday_hours
+                 FROM users
+                 WHERE id = ?'
             );
 
             $stmt->execute([$_SESSION['user_id']]);
@@ -164,7 +201,10 @@ function logout_user(): void {
 
     if ($userId) {
         db()->prepare(
-            'UPDATE users SET remember_token_hash=NULL, remember_expires=NULL WHERE id=?'
+            'UPDATE users
+             SET remember_token_hash = NULL,
+                 remember_expires = NULL
+             WHERE id = ?'
         )->execute([$userId]);
     }
 

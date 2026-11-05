@@ -1,3 +1,4 @@
+
 <?php
 require_once __DIR__ . '/config.php';
 
@@ -149,7 +150,18 @@ if ($user['role'] === 'admin') {
          ORDER BY name'
     )->fetchAll();
 }
+
+/*
+|--------------------------------------------------------------------------
+| Rolnaam bepalen
+|--------------------------------------------------------------------------
+*/
+
+$roleLabel = $user['role'] === 'admin'
+    ? 'Beheerder'
+    : 'Medewerker';
 ?>
+
 <!doctype html>
 <html lang="nl">
 <head>
@@ -178,10 +190,22 @@ if ($user['role'] === 'admin') {
     </a>
 
     <nav>
-        <span class="user-greeting">
-            <?= e($user['name']) ?>
-            <?= $user['role'] === 'admin' ? ' · Beheerder' : '' ?>
+
+       <span class="user-greeting">
+    <span class="user-name">
+        <?= e($user['name']) ?>
+    </span>
+
+    <span class="user-role">
+        <?= ($user['role'] === 'admin') ? 'Beheerder' : 'Medewerker' ?>
+    </span>
+
+    <?php if (!empty($user['work_number'])): ?>
+        <span class="user-work-number">
+            Werknummer: <?= e($user['work_number']) ?>
         </span>
+    <?php endif; ?>
+</span>
 
         <?php if ($user['role'] === 'admin'): ?>
             <a href="medewerkers.php">Medewerkers</a>
@@ -190,6 +214,7 @@ if ($user['role'] === 'admin') {
 
         <a href="export.php">Export CSV</a>
         <a href="logout.php">Uitloggen</a>
+
     </nav>
 </header>
 

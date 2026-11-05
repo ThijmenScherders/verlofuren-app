@@ -1,3 +1,4 @@
+
 <?php
 require_once __DIR__ . '/config.php';
 
@@ -9,6 +10,228 @@ $error = '';
 $currentYear = (int)date('Y');
 $yearStart = $currentYear . '-01-01';
 $nextYearStart = ($currentYear + 1) . '-01-01';
+
+$scheduleFields = [
+    'monday' => 'Maandag',
+    'tuesday' => 'Dinsdag',
+    'wednesday' => 'Woensdag',
+    'thursday' => 'Donderdag',
+    'friday' => 'Vrijdag',
+    'saturday' => 'Zaterdag',
+    'sunday' => 'Zondag'
+];
+
+/*
+|--------------------------------------------------------------------------
+| Formulieren verwerken
+|--------------------------------------------------------------------------
+*/
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
+
+    $action = $_POST['action'] ?? '';
+
+    $workNumber = trim($_POST['work_number'] ?? '');
+
+    if ($workNumber === '') {
+        $workNumber = null;
+    }
+
+    if ($workNumber !== null && mb_strlen($workNumber) > 50) {
+        $error = 'Het werknummer mag maximaal 50 tekens bevatten.';
+    }
+
+    if ($action === 'create' && !$error) {
+        $name = trim($_POST['name'] ?? '');
+        $email = strtolower(trim($_POST['email'] ?? ''));
+        $password = $_POST['password'] ?? '';
+
+        $allowance = filter_var(
+            $_POST['allowance_hours'] ?? null,
+            FILTER_VALIDATE_FLOAT
+        );
+
+        $leaveDayHours = filter_var(
+            $_POST['leave_day_hours'] ?? null,
+            FILTER_VALIDATE_FLOAT
+        );
+
+        if ($name === '' || mb_strlen($name) > 120) {
+            $error = 'Vul een geldige naam in.';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Vul een geldig e-mailadres in.';
+        } elseif (strlen($password) < 10) {
+            $error = 'Het wachtwoord moet minimaal 10 tekens bevatten.';
+        } elseif ($allowance === false || $allowance < 0 || $allowance > 5000) {
+            $error = 'Vul een geldig jaarlijks verlofrecht in.';
+        } elseif (
+            $leaveDayHours === false ||
+            $leaveDayHours <= 0 ||
+            $leaveDayHours > 24
+        ) {
+            $error = 'Vul een geldig aantal uren per verlofdag in.';
+        }
+
+        $schedule = [];
+
+        foreach ($scheduleFields as $field => $label) {
+            $value = filter_var(
+                $_POST[$field . '_hours'] ?? null,
+                FILTER_VALIDATE_FLOAT
+            );
+
+            if ($value === false || $value < 0 || $value > 24) {
+                $error = 'Vul geldige werkuren in voor ' . $label . '.';
+                break;
+            }
+
+            $schedule[$field . '_hours'] = $value;
+        }
+
+        if (!$error) {
+            try {
+                $stmt = db()->prepare(
+                    'INSERT INTO users (
+                        name,
+                        email,
+                        password_hash,
+                        role,
+                        work_number,
+                        allowance_hours,
+                        leave_day_hours,
+                        monday_hours,
+                        tuesday_hours,
+                        wednesday_hours,
+                        thursday_hours,
+                        friday_hours,
+                        saturday_hours,
+                        sunday_hours
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )'
+                );
+
+                $stmt->execute([
+                    $name,
+                    $email,
+                    password_hash($password, PASSWORD_DEFAULT),
+                    'employee',
+                    $workNumber,
+                    $allowance,
+                    $leaveDayHours,
+                    $schedule['monday_hours'],
+                    $schedule['tuesday_hours'],
+                    $schedule['wednesday_hours'],
+                    $schedule['thursday_hours'],
+                    $schedule['friday_hours'],
+                    $schedule['saturday_hours'],
+                    $schedule['sunday_hours']
+                ]);
+
+                set_flash('Medewerker is succesvol aangemaakt.');
+                redirect('medewerkers.php');
+
+            } catch (PDOException $e) {
+                if ($e->getCode() === '23000') {
+                    $error = 'Dit e-mailadres is al in gebruik.';
+                } else {
+                    $error = 'Er ging iets mis bij het aanmaken van de medewerker.';
+                }
+            }
+        }
+    }
+
+    if ($action === 'update' && !$error) {
+        $id = filter_var(
+            $_POST['id'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
+        $allowance = filter_var(
+            $_POST['allowance_hours'] ?? null,
+            FILTER_VALIDATE_FLOAT
+        );
+
+        $leaveDayHours = filter_var(
+            $_POST['leave_day_hours'] ?? null,
+            FILTER_VALIDATE_FLOAT
+        );
+
+        if (!$id || $id <= 0) {
+            $error = 'Ongeldige medewerker geselecteerd.';
+        } elseif ($id === (int)$user['id']) {
+            $error = 'Je kunt je eigen instellingen hier niet wijzigen.';
+        } elseif ($allowance === false || $allowance < 0 || $allowance > 5000) {
+            $error = 'Vul een geldig jaarlijks verlofrecht in.';
+        } elseif (
+            $leaveDayHours === false ||
+            $leaveDayHours <= 0 ||
+            $leaveDayHours > 24
+        ) {
+            $error = 'Vul een geldig aantal uren per verlofdag in.';
+        }
+
+        $schedule = [];
+
+        foreach ($scheduleFields as $field => $label) {
+            $value = filter_var(
+                $_POST[$field . '_hours'] ?? null,
+                FILTER_VALIDATE_FLOAT
+            );
+
+            if ($value === false || $value < 0 || $value > 24) {
+                $error = 'Vul geldige werkuren in voor ' . $label . '.';
+                break;
+            }
+
+            $schedule[$field . '_hours'] = $value;
+        }
+
+        if (!$error) {
+            try {
+                $stmt = db()->prepare(
+                    'UPDATE users
+                     SET work_number = ?,
+                         allowance_hours = ?,
+                         leave_day_hours = ?,
+                         monday_hours = ?,
+                         tuesday_hours = ?,
+                         wednesday_hours = ?,
+                         thursday_hours = ?,
+                         friday_hours = ?,
+                         saturday_hours = ?,
+                         sunday_hours = ?
+                     WHERE id = ?'
+                );
+
+                $stmt->execute([
+                    $workNumber,
+                    $allowance,
+                    $leaveDayHours,
+                    $schedule['monday_hours'],
+                    $schedule['tuesday_hours'],
+                    $schedule['wednesday_hours'],
+                    $schedule['thursday_hours'],
+                    $schedule['friday_hours'],
+                    $schedule['saturday_hours'],
+                    $schedule['sunday_hours'],
+                    $id
+                ]);
+
+                set_flash('Medewerker is succesvol bijgewerkt.');
+                redirect('medewerkers.php');
+
+            } catch (PDOException $e) {
+                $error = 'Er ging iets mis bij het wijzigen van de medewerker.';
+            }
+        }
+    }
+
+    if (!in_array($action, ['create', 'update'], true) && !$error) {
+        $error = 'Ongeldige actie.';
+    }
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -46,6 +269,7 @@ $employeesStmt = db()->prepare("
                 SELECT SUM(l.hours)
                 FROM leave_entries l
                 WHERE l.user_id = u.id
+                  AND l.booking_type = 'leave'
                   AND l.start_date >= ?
                   AND l.start_date < ?
             ),
@@ -67,6 +291,7 @@ $employeesStmt = db()->prepare("
             SELECT COUNT(*)
             FROM leave_entries l
             WHERE l.user_id = u.id
+              AND l.booking_type = 'leave'
               AND l.start_date <= ?
               AND l.end_date >= ?
         ) AS bridge_already_booked
@@ -125,7 +350,7 @@ $csrf = csrf_token();
             <p class="eyebrow">BEHEER</p>
             <h1>Medewerkers</h1>
             <p class="muted">
-                Maak accounts aan en stel saldo en werkrooster in.
+                Maak accounts aan en stel saldo, werknummer en werkrooster in.
             </p>
         </div>
     </div>
@@ -162,17 +387,27 @@ $csrf = csrf_token();
                 </label>
 
                 <label>
-                    E-mailadres
+                    Werknummer
 
                     <input
-                        type="email"
-                        name="email"
-                        required
-                        maxlength="190"
+                        name="work_number"
+                        maxlength="50"
+                        placeholder="Bijvoorbeeld 1024"
                     >
                 </label>
 
             </div>
+
+            <label>
+                E-mailadres
+
+                <input
+                    type="email"
+                    name="email"
+                    required
+                    maxlength="190"
+                >
+            </label>
 
             <label>
                 Tijdelijk wachtwoord (minimaal 10 tekens)
@@ -222,24 +457,14 @@ $csrf = csrf_token();
 
             <div class="week-grid">
 
-                <?php
-                foreach ([
-                    'monday' => 'Maandag',
-                    'tuesday' => 'Dinsdag',
-                    'wednesday' => 'Woensdag',
-                    'thursday' => 'Donderdag',
-                    'friday' => 'Vrijdag',
-                    'saturday' => 'Zaterdag',
-                    'sunday' => 'Zondag'
-                ] as $field => $label):
-                ?>
+                <?php foreach ($scheduleFields as $field => $label): ?>
 
                     <label>
-                        <?= $label ?>
+                        <?= e($label) ?>
 
                         <input
                             type="number"
-                            name="<?= $field ?>_hours"
+                            name="<?= e($field) ?>_hours"
                             min="0"
                             max="24"
                             step="0.25"
@@ -248,6 +473,7 @@ $csrf = csrf_token();
                                 ['saturday', 'sunday'],
                                 true
                             ) ? '0' : '7.75' ?>"
+                            required
                         >
                     </label>
 
@@ -294,26 +520,24 @@ $csrf = csrf_token();
 
                         <?php
                         $allowance = (float)$emp['allowance_hours'];
-
                         $usedHours = (float)$emp['used_hours'];
+                        $creditHours = (int)$emp['credit_minutes'] / 60;
 
-                        $creditHours =
-                            (int)$emp['credit_minutes'] / 60;
-
-                        $leaveDayHours =
-                            (float)$emp['leave_day_hours'];
+                        $leaveDayHours = (float)$emp['leave_day_hours'];
 
                         if ($leaveDayHours <= 0) {
                             $leaveDayHours = 7.75;
                         }
 
-                        // Brugdag alleen meetellen als deze nog niet geboekt is.
                         if ((int)$emp['bridge_already_booked'] === 0) {
                             $usedHours += $leaveDayHours;
                         }
 
-                        $remaining =
-                            $allowance + $creditHours - $usedHours;
+                        $remaining = $allowance + $creditHours - $usedHours;
+
+                        $roleLabel = $emp['role'] === 'admin'
+                            ? 'Beheerder'
+                            : 'Medewerker';
                         ?>
 
                         <tr>
@@ -328,46 +552,38 @@ $csrf = csrf_token();
                                 <span class="muted small">
                                     <?= e($emp['email']) ?>
                                 </span>
+
+                                <br>
+
+                                <span class="muted small">
+                                    Werknummer:
+                                    <?= !empty($emp['work_number'])
+                                        ? e($emp['work_number'])
+                                        : 'Niet ingevuld' ?>
+                                </span>
                             </td>
 
                             <td>
-                                <?= e($emp['role']) ?>
+                                <?= e($roleLabel) ?>
                             </td>
 
                             <td>
-                                <?= number_format(
-                                    $usedHours,
-                                    2,
-                                    ',',
-                                    '.'
-                                ) ?> u
+                                <?= number_format($usedHours, 2, ',', '.') ?> u
                             </td>
 
                             <td>
-                                <?= number_format(
-                                    $creditHours,
-                                    2,
-                                    ',',
-                                    '.'
-                                ) ?> u
+                                <?= number_format($creditHours, 2, ',', '.') ?> u
                             </td>
 
                             <td>
                                 <strong class="<?= $remaining < 0 ? 'negative' : '' ?>">
-                                    <?= number_format(
-                                        $remaining,
-                                        2,
-                                        ',',
-                                        '.'
-                                    ) ?> u
+                                    <?= number_format($remaining, 2, ',', '.') ?> u
                                 </strong>
                             </td>
 
                             <td>
 
-                                <?php if (
-                                    (int)$emp['id'] === (int)$user['id']
-                                ): ?>
+                                <?php if ((int)$emp['id'] === (int)$user['id']): ?>
 
                                     <span class="muted small">
                                         Eigen account
@@ -403,6 +619,18 @@ $csrf = csrf_token();
                                             >
 
                                             <label>
+                                                Werknummer
+
+                                                <input
+                                                    type="text"
+                                                    name="work_number"
+                                                    maxlength="50"
+                                                    value="<?= e($emp['work_number'] ?? '') ?>"
+                                                    placeholder="Bijvoorbeeld 1024"
+                                                >
+                                            </label>
+
+                                            <label>
                                                 Jaarlijks verlofrecht
 
                                                 <input
@@ -411,9 +639,7 @@ $csrf = csrf_token();
                                                     min="0"
                                                     max="5000"
                                                     step="0.25"
-                                                    value="<?= e(
-                                                        (string)$emp['allowance_hours']
-                                                    ) ?>"
+                                                    value="<?= e((string)$emp['allowance_hours']) ?>"
                                                     required
                                                 >
                                             </label>
@@ -427,39 +653,26 @@ $csrf = csrf_token();
                                                     min="0.01"
                                                     max="24"
                                                     step="0.01"
-                                                    value="<?= e(
-                                                        (string)$emp['leave_day_hours']
-                                                    ) ?>"
+                                                    value="<?= e((string)$emp['leave_day_hours']) ?>"
                                                     required
                                                 >
                                             </label>
 
                                             <div class="week-grid">
 
-                                                <?php
-                                                foreach ([
-                                                    'monday' => 'Ma',
-                                                    'tuesday' => 'Di',
-                                                    'wednesday' => 'Wo',
-                                                    'thursday' => 'Do',
-                                                    'friday' => 'Vr',
-                                                    'saturday' => 'Za',
-                                                    'sunday' => 'Zo'
-                                                ] as $field => $label):
-                                                ?>
+                                                <?php foreach ($scheduleFields as $field => $label): ?>
 
                                                     <label>
-                                                        <?= $label ?>
+                                                        <?= e(substr($label, 0, 2)) ?>
 
                                                         <input
                                                             type="number"
-                                                            name="<?= $field ?>_hours"
+                                                            name="<?= e($field) ?>_hours"
                                                             min="0"
                                                             max="24"
                                                             step="0.25"
-                                                            value="<?= e(
-                                                                (string)$emp[$field . '_hours']
-                                                            ) ?>"
+                                                            value="<?= e((string)$emp[$field . '_hours']) ?>"
+                                                            required
                                                         >
                                                     </label>
 

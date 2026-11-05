@@ -123,9 +123,43 @@ h3 {
     color: var(--primary);
 }
 
-.user-greeting {
-    color: var(--muted);
-    font-size: .9rem;
+/* Gebruikersinformatie in de navigatie */
+
+.topbar nav .user-greeting {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px;
+    font-size: 14px;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.topbar nav .user-name {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.topbar nav .user-role {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.topbar nav .user-work-number {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 /* Pagina */
@@ -848,7 +882,7 @@ dialog form {
         justify-content: flex-end;
     }
 
-    .user-greeting {
+    .topbar nav .user-greeting {
         display: none;
     }
 
