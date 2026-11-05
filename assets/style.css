@@ -365,6 +365,12 @@ h3 {
     background: #dc2626;
 }
 
+/* Ziekte in de legenda */
+
+.sick-dot {
+    background: #000000;
+}
+
 /* Kalender */
 
 .calendar-card {
@@ -434,6 +440,21 @@ h3 {
     color: #ffffff !important;
 }
 
+/* Ziekteboekingen: zwart */
+
+.fc .fc-event.sick-event,
+.fc .fc-event.sick-event .fc-event-main {
+    background: #000000 !important;
+    border: 1px solid #000000 !important;
+    color: #ffffff !important;
+}
+
+.fc .fc-event.sick-event .fc-event-title,
+.fc .fc-event.sick-event .fc-event-time {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+}
+
 /* Tijd-voor-tijdboekingen: groen */
 
 .fc .fc-event.time-credit-event {
@@ -483,6 +504,7 @@ h3 {
 }
 
 /* Witte, dikgedrukte tekst bij feestdagen */
+
 .fc .holiday-event .fc-event-title,
 .fc .holiday-event .fc-event-main {
     color: #ffffff !important;
