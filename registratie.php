@@ -137,11 +137,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </button>
 
     </form>
+    
 
-    <p class="small muted">
-        Heb je al een account?
-        <a href="login.php">Terug naar inloggen</a>
-    </p>
+<a href="login.php" class="button" style="display: block; text-align: center; text-decoration: none; margin-top: 10px;">
+    Terug naar inloggen
+</a>
+
+
 
 </main>
 

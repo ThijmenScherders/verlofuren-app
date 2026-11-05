@@ -178,13 +178,13 @@ if ($user['role'] === 'admin') {
             <?= $user['role'] === 'admin' ? ' · Beheerder' : '' ?>
         </span>
 
-        <?php if ($user['role'] === 'admin'): ?>
-            <a href="medewerkers.php">Medewerkers</a>
-        <?php endif; ?>
+      <?php if ($user['role'] === 'admin'): ?>
+    <a href="medewerkers.php">Medewerkers</a>
+    <a href="admin.php">Admin</a>
+<?php endif; ?>
 
-        <a href="export.php">Export CSV</a>
-        <a href="admin.php">Admin</a>
-        <a href="logout.php">Uitloggen</a>
+<a href="export.php">Export CSV</a>
+<a href="logout.php">Uitloggen</a>
     </nav>
 </header>
 
