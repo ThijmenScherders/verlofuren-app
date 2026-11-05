@@ -2,6 +2,11 @@
 require_once __DIR__ . '/config.php';
 
 $user = require_login();
+
+if ($user['role'] !== 'admin') {
+    http_response_code(403);
+    exit('Je hebt geen toegang tot deze pagina.');
+}
 require_admin($user);
 
 $error = '';
