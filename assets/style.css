@@ -1004,4 +1004,48 @@ dialog form {
     .fc .fc-daygrid-day-frame {
         min-height: 42px;
     }
+
+    .page-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.section-heading h2 {
+    margin: 0 0 5px;
+}
+
+.payout-card {
+    margin-top: 24px;
+}
+
+.payout-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.payout-table th,
+.payout-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.payout-table th {
+    font-weight: 600;
+    color: #64748b;
+}
+
+.payout-delete-button {
+    white-space: nowrap;
+}
+
+
 }

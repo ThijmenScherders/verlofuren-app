@@ -219,13 +219,171 @@ function dutch_holidays(int $year, int $endYear): array
 
 /*
 |--------------------------------------------------------------------------
-| GET: kalendergegevens en jaarsaldo ophalen
+| Saldo van een medewerker voor een bepaald jaar berekenen
+|--------------------------------------------------------------------------
+*/
+
+function calculate_employee_balance(
+    int $userId,
+    int $year,
+    array $employee
+): array {
+
+    $yearStart = $year . '-01-01';
+    $nextYearStart = ($year + 1) . '-01-01';
+
+    $annualAllowance = (float)$employee['allowance_hours'];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Opgenomen verlof
+    |--------------------------------------------------------------------------
+    */
+
+    $balanceStmt = db()->prepare(
+        'SELECT COALESCE(SUM(hours), 0)
+         FROM leave_entries
+         WHERE user_id = ?
+           AND booking_type = ?
+           AND start_date >= ?
+           AND start_date < ?'
+    );
+
+    $balanceStmt->execute([
+        $userId,
+        'leave',
+        $yearStart,
+        $nextYearStart
+    ]);
+
+    $used = (float)$balanceStmt->fetchColumn();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Automatische brugdag
+    |--------------------------------------------------------------------------
+    */
+
+    $bridgeDays = mandatory_bridge_days($year, $year);
+    $bridgeDate = array_key_first($bridgeDays);
+
+    $bridgeHours = (float)$employee['leave_day_hours'];
+
+    if ($bridgeHours <= 0) {
+        $bridgeHours = 7.75;
+    }
+
+    $bridgeCheck = db()->prepare(
+        'SELECT COUNT(*)
+         FROM leave_entries
+         WHERE user_id = ?
+           AND booking_type = ?
+           AND start_date <= ?
+           AND end_date >= ?'
+    );
+
+    $bridgeCheck->execute([
+        $userId,
+        'leave',
+        $bridgeDate,
+        $bridgeDate
+    ]);
+
+    $bridgeAlreadyBooked = (int)$bridgeCheck->fetchColumn() > 0;
+
+    if (!$bridgeAlreadyBooked) {
+        $used += $bridgeHours;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tijd voor tijd
+    |--------------------------------------------------------------------------
+    */
+
+    $creditStmt = db()->prepare(
+        'SELECT COALESCE(SUM(minutes), 0)
+         FROM time_credits
+         WHERE user_id = ?
+           AND work_date >= ?
+           AND work_date < ?'
+    );
+
+    $creditStmt->execute([
+        $userId,
+        $yearStart,
+        $nextYearStart
+    ]);
+
+    $creditMinutes = (int)$creditStmt->fetchColumn();
+    $creditHours = $creditMinutes / 60;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Uitbetaalde uren
+    |--------------------------------------------------------------------------
+    */
+
+    $payoutStmt = db()->prepare(
+        'SELECT COALESCE(SUM(hours), 0)
+         FROM leave_payouts
+         WHERE user_id = ?
+           AND payout_date >= ?
+           AND payout_date < ?'
+    );
+
+    $payoutStmt->execute([
+        $userId,
+        $yearStart,
+        $nextYearStart
+    ]);
+
+    $payoutHours = (float)$payoutStmt->fetchColumn();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Resterend saldo
+    |--------------------------------------------------------------------------
+    */
+
+    $totalAvailable = $annualAllowance + $creditHours;
+
+    $remaining = $totalAvailable
+        - $used
+        - $payoutHours;
+
+    $hoursPerDay = (float)$employee['leave_day_hours'];
+
+    if ($hoursPerDay <= 0) {
+        $hoursPerDay = 7.75;
+    }
+
+    return [
+        'annual_allowance' => round($annualAllowance, 2),
+        'credit_hours' => round($creditHours, 2),
+        'total_available' => round($totalAvailable, 2),
+        'used' => round($used, 2),
+        'payout_hours' => round($payoutHours, 2),
+        'remaining' => round($remaining, 2),
+        'hours_per_day' => round($hoursPerDay, 2)
+    ];
+}
+
+/*
+|--------------------------------------------------------------------------
+| GET: kalendergegevens, jaarsaldo en uitbetalingen ophalen
 |--------------------------------------------------------------------------
 */
 
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Jaarsaldo ophalen
+    |--------------------------------------------------------------------------
+    */
 
     if (isset($_GET['balance_year'])) {
 
@@ -238,103 +396,98 @@ if ($method === 'GET') {
             json_error('Ongeldig kalenderjaar.');
         }
 
-        $yearStart = $year . '-01-01';
-        $nextYearStart = ($year + 1) . '-01-01';
-
-        $annualAllowance = (float)$user['allowance_hours'];
-
-        $balanceStmt = db()->prepare(
-            'SELECT COALESCE(SUM(hours), 0)
-             FROM leave_entries
-             WHERE user_id = ?
-               AND booking_type = ?
-               AND start_date >= ?
-               AND start_date < ?'
+        $balance = calculate_employee_balance(
+            (int)$user['id'],
+            $year,
+            $user
         );
-
-        $balanceStmt->execute([
-            $user['id'],
-            'leave',
-            $yearStart,
-            $nextYearStart
-        ]);
-
-        $used = (float)$balanceStmt->fetchColumn();
-
-        $bridgeDays = mandatory_bridge_days($year, $year);
-
-        $bridgeDate = array_key_first($bridgeDays);
-
-        $bridgeHours = (float)$user['leave_day_hours'];
-
-        if ($bridgeHours <= 0) {
-            $bridgeHours = 7.75;
-        }
-
-        $bridgeCheck = db()->prepare(
-            'SELECT COUNT(*)
-             FROM leave_entries
-             WHERE user_id = ?
-               AND booking_type = ?
-               AND start_date <= ?
-               AND end_date >= ?'
-        );
-
-        $bridgeCheck->execute([
-            $user['id'],
-            'leave',
-            $bridgeDate,
-            $bridgeDate
-        ]);
-
-        $bridgeAlreadyBooked = (int)$bridgeCheck->fetchColumn() > 0;
-
-        if (!$bridgeAlreadyBooked) {
-            $used += $bridgeHours;
-        }
-
-        $creditStmt = db()->prepare(
-            'SELECT COALESCE(SUM(minutes), 0)
-             FROM time_credits
-             WHERE user_id = ?
-               AND work_date >= ?
-               AND work_date < ?'
-        );
-
-        $creditStmt->execute([
-            $user['id'],
-            $yearStart,
-            $nextYearStart
-        ]);
-
-        $creditMinutes = (int)$creditStmt->fetchColumn();
-
-        $creditHours = $creditMinutes / 60;
-
-        $totalAvailable = $annualAllowance + $creditHours;
-        $remaining = $totalAvailable - $used;
-
-        $hoursPerDay = (float)$user['leave_day_hours'];
-
-        if ($hoursPerDay <= 0) {
-            $hoursPerDay = 7.75;
-        }
 
         echo json_encode([
             'year' => $year,
-            'annual_allowance' => round($annualAllowance, 2),
-            'credit_hours' => round($creditHours, 2),
-            'total_available' => round($totalAvailable, 2),
-            'used' => round($used, 2),
-            'remaining' => round($remaining, 2),
-            'hours_per_day' => round($hoursPerDay, 2),
-            'available_days' => round($totalAvailable / $hoursPerDay, 2),
-            'used_days' => round($used / $hoursPerDay, 2),
-            'remaining_days' => round($remaining / $hoursPerDay, 2)
+            'annual_allowance' => $balance['annual_allowance'],
+            'credit_hours' => $balance['credit_hours'],
+            'total_available' => $balance['total_available'],
+            'used' => $balance['used'],
+            'payout_hours' => $balance['payout_hours'],
+            'remaining' => $balance['remaining'],
+            'hours_per_day' => $balance['hours_per_day'],
+            'available_days' => round(
+                $balance['total_available'] / $balance['hours_per_day'],
+                2
+            ),
+            'used_days' => round(
+                $balance['used'] / $balance['hours_per_day'],
+                2
+            ),
+            'remaining_days' => round(
+                $balance['remaining'] / $balance['hours_per_day'],
+                2
+            )
         ], JSON_UNESCAPED_UNICODE);
 
         exit;
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Uitbetalingen voor een bepaald jaar ophalen
+    |--------------------------------------------------------------------------
+    */
+
+    if (isset($_GET['payouts_year'])) {
+
+        $year = filter_var(
+            $_GET['payouts_year'],
+            FILTER_VALIDATE_INT
+        );
+
+        if ($year === false || $year < 2000 || $year > 2200) {
+            json_error('Ongeldig kalenderjaar.');
+        }
+
+        $yearStart = $year . '-01-01';
+        $nextYearStart = ($year + 1) . '-01-01';
+
+        $sql = 'SELECT
+                    p.id,
+                    p.user_id,
+                    p.payout_date,
+                    p.hours,
+                    p.note,
+                    u.name
+                FROM leave_payouts p
+                JOIN users u ON u.id = p.user_id
+                WHERE p.payout_date >= ?
+                  AND p.payout_date < ?';
+
+        $params = [$yearStart, $nextYearStart];
+
+        if ($user['role'] !== 'admin') {
+            $sql .= ' AND p.user_id = ?';
+            $params[] = $user['id'];
+        } elseif (isset($_GET['user_id'])) {
+            $sql .= ' AND p.user_id = ?';
+            $params[] = (int)$_GET['user_id'];
+        }
+
+        $sql .= ' ORDER BY p.payout_date DESC, p.id DESC';
+
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+
+        echo json_encode(
+            $stmt->fetchAll(),
+            JSON_UNESCAPED_UNICODE
+        );
+
+        exit;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Kalenderdatums controleren
+    |--------------------------------------------------------------------------
+    */
 
     $start = (string)($_GET['start'] ?? date('Y-m-01'));
     $end = (string)($_GET['end'] ?? date('Y-m-t'));
@@ -638,6 +791,142 @@ if (!hash_equals(
 }
 
 $action = (string)($input['action'] ?? '');
+
+/*
+|--------------------------------------------------------------------------
+| Uitbetaling opslaan
+|--------------------------------------------------------------------------
+*/
+
+if ($action === 'save_payout') {
+
+    $targetUser = get_target_user($user, $input);
+
+    $payoutDate = (string)($input['payout_date'] ?? '');
+
+    $hours = filter_var(
+        $input['hours'] ?? null,
+        FILTER_VALIDATE_FLOAT
+    );
+
+    $note = trim((string)($input['note'] ?? ''));
+
+    if (!valid_date($payoutDate)) {
+        json_error('Kies een geldige uitbetalingsdatum.');
+    }
+
+    if ($hours === false || $hours <= 0 || $hours > 1000) {
+        json_error('Vul een geldig aantal uit te betalen uren in.');
+    }
+
+    $hours = round((float)$hours, 2);
+
+    if ($hours <= 0) {
+        json_error('Het aantal uren moet groter zijn dan 0.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Medewerker ophalen
+    |--------------------------------------------------------------------------
+    */
+
+    $targetStmt = db()->prepare(
+        'SELECT * FROM users WHERE id = ?'
+    );
+
+    $targetStmt->execute([$targetUser]);
+
+    $target = $targetStmt->fetch();
+
+    if (!$target) {
+        json_error('Medewerker niet gevonden.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Saldo berekenen voor het jaar van de uitbetaling
+    |--------------------------------------------------------------------------
+    */
+
+    $payoutYear = (int)substr($payoutDate, 0, 4);
+
+    $balance = calculate_employee_balance(
+        $targetUser,
+        $payoutYear,
+        $target
+    );
+
+    if ($hours > $balance['remaining']) {
+        json_error(
+            'Er is onvoldoende verlofsaldo. ' .
+            'Het huidige resterende saldo is ' .
+            number_format($balance['remaining'], 2, ',', '.') .
+            ' uur.'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Uitbetaling opslaan
+    |--------------------------------------------------------------------------
+    */
+
+    db()->prepare(
+        'INSERT INTO leave_payouts
+            (user_id, payout_date, hours, note)
+         VALUES (?, ?, ?, ?)'
+    )->execute([
+        $targetUser,
+        $payoutDate,
+        $hours,
+        mb_substr($note, 0, 255)
+    ]);
+
+    echo json_encode([
+        'ok' => true,
+        'hours' => $hours
+    ], JSON_UNESCAPED_UNICODE);
+
+    exit;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Uitbetaling verwijderen
+|--------------------------------------------------------------------------
+*/
+
+if ($action === 'delete_payout') {
+
+    $id = (int)($input['id'] ?? 0);
+
+    if ($id <= 0) {
+        json_error('Ongeldige uitbetaling.');
+    }
+
+    $stmt = db()->prepare(
+        'SELECT * FROM leave_payouts WHERE id = ?'
+    );
+
+    $stmt->execute([$id]);
+
+    $existing = $stmt->fetch();
+
+    if (!$existing) {
+        json_error('Uitbetaling niet gevonden.', 404);
+    }
+
+    check_entry_access($user, $existing);
+
+    db()->prepare(
+        'DELETE FROM leave_payouts WHERE id = ?'
+    )->execute([$id]);
+
+    echo json_encode(['ok' => true]);
+
+    exit;
+}
 
 /*
 |--------------------------------------------------------------------------
