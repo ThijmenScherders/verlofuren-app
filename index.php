@@ -387,7 +387,7 @@ $roleLabel = $user['role'] === 'admin'
 
     <!-- Uitbetalingsgeschiedenis -->
 
-    <section class="calendar-card payout-card">
+    <section class="calendar-card payout-card" style="margin-top: 40px;">
 
         <div class="section-heading">
             <div>

@@ -1048,4 +1048,13 @@ dialog form {
 }
 
 
+#payoutHistory {
+    margin-top: 20px;
+}
+
+.payout-card {
+    margin-top: 50px !important;
+}
+
+
 }
