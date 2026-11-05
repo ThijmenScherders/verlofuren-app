@@ -10,7 +10,9 @@ $user = require_login();
 */
 
 $currentYear = (int)date('Y');
-$annualAllowance = (float)$user['allowance_hours'];
+
+// Vast jaarlijks verlofrecht
+$annualAllowance = 193.75;
 
 $yearStart = $currentYear . '-01-01';
 $nextYearStart = ($currentYear + 1) . '-01-01';
@@ -44,12 +46,14 @@ $balanceStmt = db()->prepare(
     'SELECT COALESCE(SUM(hours), 0)
      FROM leave_entries
      WHERE user_id = ?
+       AND booking_type = ?
        AND start_date >= ?
        AND start_date < ?'
 );
 
 $balanceStmt->execute([
     $user['id'],
+    'leave',
     $yearStart,
     $nextYearStart
 ]);
@@ -74,12 +78,14 @@ $bridgeCheck = db()->prepare(
     'SELECT COUNT(*)
      FROM leave_entries
      WHERE user_id = ?
+       AND booking_type = ?
        AND start_date <= ?
        AND end_date >= ?'
 );
 
 $bridgeCheck->execute([
     $user['id'],
+    'leave',
     $bridgeDate,
     $bridgeDate
 ]);
@@ -120,8 +126,10 @@ $creditHours = $creditMinutes / 60;
 |--------------------------------------------------------------------------
 */
 
-$totalAvailable = $annualAllowance + $creditHours;
-$remaining = $totalAvailable - $used;
+// Beschikbaar verlof blijft altijd 193,75 uur.
+// Tijd-voor-tijd telt alleen mee bij het resterende saldo.
+$totalAvailable = $annualAllowance;
+$remaining = $annualAllowance + $creditHours - $used;
 
 $hoursPerDay = (float)$user['leave_day_hours'];
 
@@ -178,13 +186,13 @@ if ($user['role'] === 'admin') {
             <?= $user['role'] === 'admin' ? ' · Beheerder' : '' ?>
         </span>
 
-      <?php if ($user['role'] === 'admin'): ?>
-    <a href="medewerkers.php">Medewerkers</a>
-    <a href="admin.php">Admin</a>
-<?php endif; ?>
+        <?php if ($user['role'] === 'admin'): ?>
+            <a href="medewerkers.php">Medewerkers</a>
+            <a href="admin.php">Admin</a>
+        <?php endif; ?>
 
-<a href="export.php">Export CSV</a>
-<a href="logout.php">Uitloggen</a>
+        <a href="export.php">Export CSV</a>
+        <a href="logout.php">Uitloggen</a>
     </nav>
 </header>
 
@@ -204,84 +212,90 @@ if ($user['role'] === 'admin') {
         </button>
     </div>
 
-   <section class="stats">
+    <section class="stats">
 
-    <article class="stat-card available-card">
-        <div class="stat-card-top">
-            <span class="stat-icon">◷</span>
-            <span class="stat-label">Beschikbaar verlof</span>
-        </div>
+        <article class="stat-card available-card">
+            <div class="stat-card-top">
+                <span class="stat-icon">◷</span>
+                <span class="stat-label">Beschikbaar verlof</span>
+            </div>
 
-        <strong class="stat-value">
-            <span id="availableHours">
-                <?= number_format($totalAvailable, 2, ',', '.') ?>
-            </span>
-            <small>uur</small>
-        </strong>
+            <strong class="stat-value">
+                <span id="availableHours">
+                    <?= number_format($annualAllowance, 2, ',', '.') ?>
+                </span>
+                <small>uur</small>
+            </strong>
 
-        <p class="stat-meta">
-            <span id="availableDays">
-                <?= number_format($availableDays, 2, ',', '.') ?>
-            </span>
-            dagen beschikbaar
-        </p>
-    </article>
+            <p class="stat-meta">
+                <span id="availableDays">
+                    <?= number_format($availableDays, 2, ',', '.') ?>
+                </span>
+                dagen beschikbaar
+            </p>
+        </article>
 
-    <article class="stat-card used-card">
-        <div class="stat-card-top">
-            <span class="stat-icon">▣</span>
-            <span class="stat-label">Ingepland / opgenomen</span>
-        </div>
+        <article class="stat-card used-card">
+            <div class="stat-card-top">
+                <span class="stat-icon">▣</span>
+                <span class="stat-label">Ingepland / opgenomen</span>
+            </div>
 
-        <strong class="stat-value">
-            <span id="usedHours">
-                <?= number_format($used, 2, ',', '.') ?>
-            </span>
-            <small>uur</small>
-        </strong>
+            <strong class="stat-value">
+                <span id="usedHours">
+                    <?= number_format($used, 2, ',', '.') ?>
+                </span>
+                <small>uur</small>
+            </strong>
 
-        <p class="stat-meta">
-            <span id="usedDays">
-                <?= number_format($usedDays, 2, ',', '.') ?>
-            </span>
-            dagen ingepland
-        </p>
-    </article>
+            <p class="stat-meta">
+                <span id="usedDays">
+                    <?= number_format($usedDays, 2, ',', '.') ?>
+                </span>
+                dagen ingepland
+            </p>
+        </article>
 
-    <article class="stat-card remaining-card">
-        <div class="stat-card-top">
-            <span class="stat-icon">✓</span>
-            <span class="stat-label">Resterend saldo</span>
-        </div>
+        <article class="stat-card remaining-card">
+            <div class="stat-card-top">
+                <span class="stat-icon">✓</span>
+                <span class="stat-label">Resterend saldo</span>
+            </div>
 
-        <strong
-            id="remainingHoursWrapper"
-            class="stat-value <?= $remaining < 0 ? 'negative' : '' ?>"
-        >
-            <span id="remainingHours">
-                <?= number_format($remaining, 2, ',', '.') ?>
-            </span>
-            <small>uur</small>
-        </strong>
+            <strong
+                id="remainingHoursWrapper"
+                class="stat-value <?= $remaining < 0 ? 'negative' : '' ?>"
+            >
+                <span id="remainingHours">
+                    <?= number_format($remaining, 2, ',', '.') ?>
+                </span>
+                <small>uur</small>
+            </strong>
 
-        <p class="stat-meta">
-            <span id="remainingDays">
-                <?= number_format($remainingDays, 2, ',', '.') ?>
-            </span>
-            dagen over
-        </p>
-    </article>
+            <p class="stat-meta">
+                <span id="remainingDays">
+                    <?= number_format($remainingDays, 2, ',', '.') ?>
+                </span>
+                dagen over
+            </p>
+        </article>
 
-</section>
+    </section>
 
     <div class="legend">
+
         <span>
             <i class="dot leave-dot"></i>
             Verlof
         </span>
 
         <span>
-            <i class="dot" style="background:#22c55e"></i>
+            <i class="dot sick-dot"></i>
+            Ziek
+        </span>
+
+        <span>
+            <i class="dot time-credit-dot"></i>
             Tijd voor tijd
         </span>
 
@@ -291,13 +305,14 @@ if ($user['role'] === 'admin') {
         </span>
 
         <span>
-            <i class="dot" style="background:#dc2626"></i>
+            <i class="dot bridge-day-dot"></i>
             Verplichte vrije dag
         </span>
 
         <span class="muted">
             Klik op een boeking om deze te bekijken of aan te passen.
         </span>
+
     </div>
 
     <section class="calendar-card">
@@ -311,6 +326,7 @@ if ($user['role'] === 'admin') {
         Een volledige werkdag is 7,75 uur, van 08:45 tot 16:30.
         Feestdagen worden niet van de automatische berekening afgetrokken.
         De vrijdag na Hemelvaartsdag wordt automatisch als verplichte vrije dag meegerekend.
+        Ziekteboekingen kosten geen verlofuren.
     </p>
 
 </main>
@@ -342,6 +358,7 @@ if ($user['role'] === 'admin') {
 
             <select id="entryType" required>
                 <option value="leave">Verlof</option>
+                <option value="sick">Ziek</option>
                 <option value="time_credit">Tijd voor tijd</option>
             </select>
         </label>
@@ -414,9 +431,10 @@ if ($user['role'] === 'admin') {
             <p class="muted">
                 Normale werktijden: 08:45 tot 16:30 (7,75 uur).
                 Je kunt de tijden per verlofboeking aanpassen.
+                Bij ziekte worden geen verlofuren berekend.
             </p>
 
-            <label>
+            <label id="calculationWrap">
                 Berekening
 
                 <select id="calculationMode">

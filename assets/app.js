@@ -1,3 +1,4 @@
+
 document.addEventListener('DOMContentLoaded', () => {
 
     const calendarEl = document.getElementById('calendar');
@@ -23,6 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const creditDateInput = document.getElementById('creditDate');
     const creditMinutesInput = document.getElementById('creditMinutes');
+
+    // Vast jaarlijks verlofrecht.
+    const ANNUAL_ALLOWANCE = 193.75;
 
     let calendar;
 
@@ -101,14 +105,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // PHP gebruikt snake_case.
-            const totalAvailable = Number(data.total_available);
+            // Beschikbaar verlof blijft altijd 193,75 uur.
+            const totalAvailable = ANNUAL_ALLOWANCE;
+
+            // Opgenomen verlof en resterend saldo komen uit de API.
             const used = Number(data.used);
             const remaining = Number(data.remaining);
             const hoursPerDay = Number(data.hours_per_day);
 
             if (
-                !Number.isFinite(totalAvailable) ||
                 !Number.isFinite(used) ||
                 !Number.isFinite(remaining) ||
                 !Number.isFinite(hoursPerDay) ||
@@ -165,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const setEntryTypeUI = () => {
 
         const isCredit = entryType.value === 'time_credit';
+        const isSick = entryType.value === 'sick';
 
         leaveFields.classList.toggle('hidden', isCredit);
         creditFields.classList.toggle('hidden', !isCredit);
@@ -177,10 +183,21 @@ document.addEventListener('DOMContentLoaded', () => {
         creditDateInput.required = isCredit;
         creditMinutesInput.required = isCredit;
 
+        const calculationWrap =
+            document.getElementById('calculationWrap');
+
+        calculationWrap.classList.toggle('hidden', isSick);
+        hoursWrap.classList.toggle('hidden', isSick || mode.value !== 'manual');
+
         if (isCredit) {
 
             document.getElementById('dialogTitle').textContent =
                 'Tijd-voor-tijd toevoegen';
+
+        } else if (isSick) {
+
+            document.getElementById('dialogTitle').textContent =
+                'Ziekte registreren';
 
         } else {
 
@@ -194,9 +211,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handmatige berekening tonen of verbergen.
     const setModeUI = () => {
 
+        const isSick = entryType.value === 'sick';
+
         hoursWrap.classList.toggle(
             'hidden',
-            mode.value !== 'manual'
+            isSick || mode.value !== 'manual'
         );
 
     };
@@ -266,7 +285,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } else {
 
-            entryType.value = 'leave';
+            // Bestaande boeking kan verlof of ziekte zijn.
+            entryType.value = p.entry_type === 'sick'
+                ? 'sick'
+                : 'leave';
 
             startDateInput.value = event.startStr.slice(0, 10);
 
@@ -304,7 +326,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('dialogTitle').textContent =
             p.entry_type === 'time_credit'
                 ? 'Tijd-voor-tijd aanpassen'
-                : 'Verlof aanpassen';
+                : p.entry_type === 'sick'
+                    ? 'Ziekte aanpassen'
+                    : 'Verlof aanpassen';
 
         deleteButton.classList.remove('hidden');
 
@@ -402,6 +426,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (info.event.extendedProps.entry_type === 'time_credit') {
                 info.el.classList.add('time-credit-event');
+                return;
+            }
+
+            if (info.event.extendedProps.entry_type === 'sick') {
+                info.el.classList.add('sick-event');
             }
 
         }
@@ -434,6 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
         errorEl.textContent = '';
 
         const isCredit = entryType.value === 'time_credit';
+        const isSick = entryType.value === 'sick';
 
         const employee = document.getElementById('employeeId');
 
@@ -496,6 +526,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('leaveId').value || 0
                 ),
 
+                booking_type: isSick ? 'sick' : 'leave',
+
                 start_date: startDateInput.value,
 
                 end_date: endDateInput.value,
@@ -504,9 +536,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 end_time: endTimeInput.value,
 
-                calculation_mode: mode.value,
+                calculation_mode: isSick ? 'automatic' : mode.value,
 
-                hours: document.getElementById('hours').value
+                hours: isSick ? 0 : document.getElementById('hours').value
 
             };
 
