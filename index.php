@@ -5,6 +5,18 @@ $user = require_login();
 
 /*
 |--------------------------------------------------------------------------
+| Jaarlijks verlofrecht en beginsaldo
+|--------------------------------------------------------------------------
+*/
+
+$currentYear = (int)date('Y');
+$annualAllowance = (float)$user['allowance_hours'];
+
+$yearStart = $currentYear . '-01-01';
+$nextYearStart = ($currentYear + 1) . '-01-01';
+
+/*
+|--------------------------------------------------------------------------
 | Brugdag na Hemelvaartsdag berekenen
 |--------------------------------------------------------------------------
 */
@@ -24,17 +36,24 @@ function get_bridge_day(int $year): string
 
 /*
 |--------------------------------------------------------------------------
-| Opgenomen verlofuren ophalen
+| Opgenomen verlofuren van het huidige jaar
 |--------------------------------------------------------------------------
 */
 
 $balanceStmt = db()->prepare(
     'SELECT COALESCE(SUM(hours), 0)
      FROM leave_entries
-     WHERE user_id = ?'
+     WHERE user_id = ?
+       AND start_date >= ?
+       AND start_date < ?'
 );
 
-$balanceStmt->execute([$user['id']]);
+$balanceStmt->execute([
+    $user['id'],
+    $yearStart,
+    $nextYearStart
+]);
+
 $used = (float)$balanceStmt->fetchColumn();
 
 /*
@@ -43,7 +62,6 @@ $used = (float)$balanceStmt->fetchColumn();
 |--------------------------------------------------------------------------
 */
 
-$currentYear = (int)date('Y');
 $bridgeDate = get_bridge_day($currentYear);
 
 $bridgeHours = (float)$user['leave_day_hours'];
@@ -52,7 +70,6 @@ if ($bridgeHours <= 0) {
     $bridgeHours = 7.75;
 }
 
-// Controleer of er al een verlofboeking over de brugdag loopt.
 $bridgeCheck = db()->prepare(
     'SELECT COUNT(*)
      FROM leave_entries
@@ -69,24 +86,30 @@ $bridgeCheck->execute([
 
 $bridgeAlreadyBooked = (int)$bridgeCheck->fetchColumn() > 0;
 
-// Als er nog geen verlofboeking overheen loopt, tellen we de brugdag mee.
 if (!$bridgeAlreadyBooked) {
     $used += $bridgeHours;
 }
 
 /*
 |--------------------------------------------------------------------------
-| Tijd-voor-tijdminuten ophalen
+| Tijd-voor-tijdminuten van het huidige jaar
 |--------------------------------------------------------------------------
 */
 
 $creditStmt = db()->prepare(
     'SELECT COALESCE(SUM(minutes), 0)
      FROM time_credits
-     WHERE user_id = ?'
+     WHERE user_id = ?
+       AND work_date >= ?
+       AND work_date < ?'
 );
 
-$creditStmt->execute([$user['id']]);
+$creditStmt->execute([
+    $user['id'],
+    $yearStart,
+    $nextYearStart
+]);
+
 $creditMinutes = (int)$creditStmt->fetchColumn();
 
 $creditHours = $creditMinutes / 60;
@@ -97,7 +120,7 @@ $creditHours = $creditMinutes / 60;
 |--------------------------------------------------------------------------
 */
 
-$totalAvailable = (float)$user['allowance_hours'] + $creditHours;
+$totalAvailable = $annualAllowance + $creditHours;
 $remaining = $totalAvailable - $used;
 
 $hoursPerDay = (float)$user['leave_day_hours'];
@@ -181,48 +204,75 @@ if ($user['role'] === 'admin') {
         </button>
     </div>
 
-    <section class="stats">
+   <section class="stats">
 
-        <article class="stat-card">
-            <span>Beschikbaar verlof</span>
+    <article class="stat-card available-card">
+        <div class="stat-card-top">
+            <span class="stat-icon">◷</span>
+            <span class="stat-label">Beschikbaar verlof</span>
+        </div>
 
-            <strong>
+        <strong class="stat-value">
+            <span id="availableHours">
                 <?= number_format($totalAvailable, 2, ',', '.') ?>
-                <small>uur</small>
-            </strong>
+            </span>
+            <small>uur</small>
+        </strong>
 
-            <p>
-                <?= number_format($availableDays, 2, ',', '.') ?> dagen
-            </p>
-        </article>
+        <p class="stat-meta">
+            <span id="availableDays">
+                <?= number_format($availableDays, 2, ',', '.') ?>
+            </span>
+            dagen beschikbaar
+        </p>
+    </article>
 
-        <article class="stat-card">
-            <span>Ingepland / opgenomen</span>
+    <article class="stat-card used-card">
+        <div class="stat-card-top">
+            <span class="stat-icon">▣</span>
+            <span class="stat-label">Ingepland / opgenomen</span>
+        </div>
 
-            <strong>
+        <strong class="stat-value">
+            <span id="usedHours">
                 <?= number_format($used, 2, ',', '.') ?>
-                <small>uur</small>
-            </strong>
+            </span>
+            <small>uur</small>
+        </strong>
 
-            <p>
-                <?= number_format($usedDays, 2, ',', '.') ?> dagen
-            </p>
-        </article>
+        <p class="stat-meta">
+            <span id="usedDays">
+                <?= number_format($usedDays, 2, ',', '.') ?>
+            </span>
+            dagen ingepland
+        </p>
+    </article>
 
-        <article class="stat-card">
-            <span>Resterend saldo</span>
+    <article class="stat-card remaining-card">
+        <div class="stat-card-top">
+            <span class="stat-icon">✓</span>
+            <span class="stat-label">Resterend saldo</span>
+        </div>
 
-            <strong class="<?= $remaining < 0 ? 'negative' : '' ?>">
+        <strong
+            id="remainingHoursWrapper"
+            class="stat-value <?= $remaining < 0 ? 'negative' : '' ?>"
+        >
+            <span id="remainingHours">
                 <?= number_format($remaining, 2, ',', '.') ?>
-                <small>uur</small>
-            </strong>
+            </span>
+            <small>uur</small>
+        </strong>
 
-            <p>
-                <?= number_format($remainingDays, 2, ',', '.') ?> dagen
-            </p>
-        </article>
+        <p class="stat-meta">
+            <span id="remainingDays">
+                <?= number_format($remainingDays, 2, ',', '.') ?>
+            </span>
+            dagen over
+        </p>
+    </article>
 
-    </section>
+</section>
 
     <div class="legend">
         <span>
@@ -255,7 +305,9 @@ if ($user['role'] === 'admin') {
     </section>
 
     <p class="footnote">
-        Automatische berekening gebruikt je werkrooster.
+        Je jaarlijkse verlofrecht bedraagt
+        <?= number_format($annualAllowance, 2, ',', '.') ?> uur.
+        Het verlofsaldo en tijd-voor-tijdsaldo worden per kalenderjaar berekend.
         Een volledige werkdag is 7,75 uur, van 08:45 tot 16:30.
         Feestdagen worden niet van de automatische berekening afgetrokken.
         De vrijdag na Hemelvaartsdag wordt automatisch als verplichte vrije dag meegerekend.
@@ -285,7 +337,6 @@ if ($user['role'] === 'admin') {
 
         <input type="hidden" id="leaveId">
 
-        <!-- Type boeking -->
         <label>
             Type boeking
 
@@ -295,7 +346,6 @@ if ($user['role'] === 'admin') {
             </select>
         </label>
 
-        <!-- Medewerker -->
         <label>
             Medewerker
 
@@ -321,7 +371,6 @@ if ($user['role'] === 'admin') {
             <?php endif; ?>
         </label>
 
-        <!-- Verlofvelden -->
         <div id="leaveFields">
 
             <div class="form-grid">
@@ -396,7 +445,6 @@ if ($user['role'] === 'admin') {
 
         </div>
 
-        <!-- Tijd-voor-tijdvelden -->
         <div id="creditFields" class="hidden">
 
             <label>
@@ -424,7 +472,6 @@ if ($user['role'] === 'admin') {
 
         </div>
 
-        <!-- Opmerking -->
         <label>
             Opmerking (optioneel)
 
