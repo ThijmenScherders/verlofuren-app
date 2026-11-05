@@ -60,6 +60,8 @@ h3 {
     margin: 0 0 .45rem;
 }
 
+/* Navigatie */
+
 .topbar {
     height: 72px;
     background: #fff;
@@ -125,6 +127,8 @@ h3 {
     font-size: .9rem;
 }
 
+/* Pagina */
+
 .container {
     max-width: 1240px;
     margin: 38px auto;
@@ -142,6 +146,8 @@ h3 {
     gap: 20px;
     margin-bottom: 25px;
 }
+
+/* Knoppen */
 
 .button {
     display: inline-flex;
@@ -173,47 +179,150 @@ h3 {
     background: #f8fafc;
 }
 
+/* =========================================
+   VERLOF OVERZICHT
+========================================= */
+
 .stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    margin-bottom: 22px;
-}
-
-.stat-card,
-.calendar-card,
-.panel {
-    background: white;
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    box-shadow: 0 2px 8px #0f172a05;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
 }
 
 .stat-card {
-    padding: 21px 23px;
+    position: relative;
+    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: 0 4px 14px #0f172a08;
+    transition: transform .2s ease, box-shadow .2s ease;
 }
 
-.stat-card span {
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px #0f172a10;
+}
+
+/* Gekleurde bovenrand */
+
+.stat-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+}
+
+.available-card::after {
+    background: #6366f1;
+}
+
+.used-card::after {
+    background: #64748b;
+}
+
+.remaining-card::after {
+    background: #10b981;
+}
+
+/* Bovenste gedeelte van de kaarten */
+
+.stat-card-top {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin-bottom: 23px;
+}
+
+.stat-card .stat-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 11px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.available-card .stat-icon {
+    background: #eef2ff;
+    color: #4f46e5;
+}
+
+.used-card .stat-icon {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.remaining-card .stat-icon {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.stat-card .stat-label {
     display: block;
-    color: var(--muted);
+    color: #64748b;
     font-size: .9rem;
-    margin-bottom: 10px;
+    font-weight: 600;
+    margin: 0;
 }
 
-.stat-card strong {
+/* Uren */
+
+.stat-card .stat-value {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
     font-family: Manrope, sans-serif;
-    font-size: 1.8rem;
-    letter-spacing: -.04em;
+    font-size: clamp(1.8rem, 2.5vw, 2.2rem);
+    font-weight: 800;
+    letter-spacing: -.05em;
+    line-height: 1.2;
+    color: #1e293b;
 }
 
-.stat-card strong small {
+.stat-card .stat-value span {
+    display: inline;
+    color: inherit;
+    font: inherit;
+    margin: 0;
+}
+
+.stat-card .stat-value small {
     font: 500 .9rem 'DM Sans', sans-serif;
-    color: var(--muted);
+    color: #64748b;
+    letter-spacing: 0;
 }
 
-.negative {
-    color: var(--red);
+/* Dagen onder de uren */
+
+.stat-card .stat-meta {
+    color: #64748b;
+    font-size: .85rem;
+    margin: 12px 0 0;
 }
+
+.stat-card .stat-meta span {
+    display: inline;
+    color: #334155;
+    font-weight: 700;
+    margin: 0;
+}
+
+/* Negatief verlofsaldo */
+
+.stat-card .stat-value.negative,
+.stat-card .stat-value.negative small {
+    color: #dc2626;
+}
+
+/* Legenda */
 
 .legend {
     display: flex;
@@ -241,6 +350,7 @@ h3 {
 }
 
 /* Tijd voor tijd in de legenda */
+
 .time-credit-dot {
     background: #22c55e;
 }
@@ -250,15 +360,23 @@ h3 {
 }
 
 /* Verplichte vrije dag in de legenda */
+
 .bridge-day-dot {
     background: #dc2626;
 }
 
+/* Kalender */
+
 .calendar-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px #0f172a05;
     padding: 22px;
 }
 
 /* FullCalendar */
+
 .fc {
     --fc-border-color: #edf0f5;
     --fc-button-bg-color: #fff;
@@ -297,6 +415,7 @@ h3 {
 }
 
 /* Verlofafspraken: blauw */
+
 .fc .fc-event {
     background: #4338ca !important;
     border: 1px solid #3730a3 !important;
@@ -309,12 +428,14 @@ h3 {
 }
 
 /* Tekst binnen verlofafspraken */
+
 .fc .fc-event .fc-event-title,
 .fc .fc-event .fc-event-time {
     color: #ffffff !important;
 }
 
 /* Tijd-voor-tijdboekingen: groen */
+
 .fc .fc-event.time-credit-event {
     background: #22c55e !important;
     border: 1px solid #16a34a !important;
@@ -322,6 +443,7 @@ h3 {
 }
 
 /* Tekst binnen tijd-voor-tijdboekingen */
+
 .fc .fc-event.time-credit-event .fc-event-title,
 .fc .fc-event.time-credit-event .fc-event-time {
     color: #ffffff !important;
@@ -329,6 +451,7 @@ h3 {
 }
 
 /* Verplichte vrije dag na Hemelvaartsdag: rood */
+
 .fc .fc-event.mandatory-bridge-event {
     background: #dc2626 !important;
     border: 1px solid #b91c1c !important;
@@ -336,6 +459,7 @@ h3 {
 }
 
 /* Tekst binnen verplichte vrije dag */
+
 .fc .fc-event.mandatory-bridge-event .fc-event-title,
 .fc .fc-event.mandatory-bridge-event .fc-event-time {
     color: #ffffff !important;
@@ -343,6 +467,7 @@ h3 {
 }
 
 /* Nationale feestdagen als kleine labels */
+
 .fc .holiday-event {
     background: #4338ca !important;
     border: 1px solid #3730a3 !important;
@@ -358,20 +483,30 @@ h3 {
 }
 
 /* Witte, dikgedrukte tekst bij feestdagen */
+
 .fc .holiday-event .fc-event-title,
 .fc .holiday-event .fc-event-main {
     color: #ffffff !important;
     font-weight: 700 !important;
 }
 
+/* Footnote */
+
 .footnote {
     font-size: .84rem;
     color: var(--muted);
     line-height: 1.6;
     margin-top: 17px;
+    max-width: 900px;
 }
 
+/* Panel */
+
 .panel {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px #0f172a05;
     padding: 24px;
     margin-bottom: 22px;
 }
@@ -379,6 +514,8 @@ h3 {
 .panel h2 {
     margin-bottom: 18px;
 }
+
+/* Formulieren */
 
 label {
     display: block;
@@ -412,6 +549,8 @@ input:focus, select:focus {
     gap: 14px;
 }
 
+/* Weekrooster */
+
 .week-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -425,6 +564,8 @@ input:focus, select:focus {
 .week-grid input {
     padding: 9px 7px;
 }
+
+/* Tabellen */
 
 .table-wrap {
     overflow-x: auto;
@@ -474,6 +615,8 @@ summary {
     font-size: .8rem;
 }
 
+/* Meldingen */
+
 .alert {
     padding: 12px 15px;
     border-radius: 9px;
@@ -486,6 +629,8 @@ summary {
     background: #fee2e2;
     color: #991b1b;
 }
+
+/* Inlogpagina */
 
 .auth-page {
     min-height: 100vh;
@@ -538,6 +683,8 @@ summary {
     margin-top: 22px;
     line-height: 1.5;
 }
+
+/* Boekingsvenster */
 
 .modal-heading {
     display: flex;
@@ -602,12 +749,12 @@ dialog form {
     margin: 5px 0;
 }
 
-.footnote {
-    max-width: 900px;
-}
+/* =========================================
+   TABLET EN MOBIEL
+========================================= */
 
-/* Tablet en mobiel */
 @media (max-width: 760px) {
+
     .topbar {
         height: auto;
         min-height: 64px;
@@ -639,18 +786,26 @@ dialog form {
         padding: 10px 12px;
     }
 
+    /* Verlofoverzicht mobiel */
+
     .stats {
         grid-template-columns: 1fr;
-        gap: 10px;
+        gap: 12px;
     }
 
     .stat-card {
-        padding: 16px 18px;
+        padding: 19px 20px;
     }
 
-    .stat-card strong {
-        font-size: 1.55rem;
+    .stat-card-top {
+        margin-bottom: 15px;
     }
+
+    .stat-card .stat-value {
+        font-size: 1.8rem;
+    }
+
+    /* Kalender mobiel */
 
     .calendar-card {
         padding: 10px;
@@ -696,7 +851,10 @@ dialog form {
     }
 }
 
+/* Kleine telefoons */
+
 @media (max-width: 450px) {
+
     .brand {
         font-size: 1rem;
     }
