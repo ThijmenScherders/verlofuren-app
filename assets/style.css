@@ -1056,5 +1056,88 @@ dialog form {
     margin-top: 50px !important;
 }
 
+.notification-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-size: 23px;
+    transition: background 0.2s ease;
+}
+
+.notification-button:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.notification-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #ef4444;
+    border: 2px solid white;
+}
+
+.notification-badge.hidden {
+    display: none;
+}
+
+/* Meldingenvenster */
+
+#notificationDialog {
+    width: min(500px, calc(100% - 32px));
+    max-height: 80vh;
+    overflow-y: auto;
+    border: none;
+    border-radius: 16px;
+    padding: 24px;
+}
+
+#notificationDialog::backdrop {
+    background: rgba(15, 23, 42, 0.55);
+}
+
+#notificationList {
+    margin-top: 20px;
+}
+
+.notification-item {
+    padding: 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+.notification-item.unread {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.notification-item h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+}
+
+.notification-item p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.notification-item small {
+    display: block;
+    margin-top: 8px;
+    color: #64748b;
+}
+
 
 }

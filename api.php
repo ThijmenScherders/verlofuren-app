@@ -1,5 +1,6 @@
 
 <?php
+
 require_once __DIR__ . '/config.php';
 
 $user = require_login();
@@ -16,7 +17,6 @@ function json_error(string $message, int $code = 400): never
 function time_to_minutes(string $time): int
 {
     $parts = explode(':', $time);
-
     return ((int)$parts[0] * 60) + (int)$parts[1];
 }
 
@@ -229,10 +229,22 @@ function calculate_employee_balance(
     array $employee
 ): array {
 
+    /*
+     * Geen statische cache gebruiken.
+     * Zo wordt het saldo na een wijziging opnieuw uit de database gelezen.
+     */
+
     $yearStart = $year . '-01-01';
     $nextYearStart = ($year + 1) . '-01-01';
+    $marchEnd = $year . '-04-01';
 
     $annualAllowance = (float)$employee['allowance_hours'];
+
+    $hoursPerDay = (float)$employee['leave_day_hours'];
+
+    if ($hoursPerDay <= 0) {
+        $hoursPerDay = 7.75;
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -267,12 +279,6 @@ function calculate_employee_balance(
     $bridgeDays = mandatory_bridge_days($year, $year);
     $bridgeDate = array_key_first($bridgeDays);
 
-    $bridgeHours = (float)$employee['leave_day_hours'];
-
-    if ($bridgeHours <= 0) {
-        $bridgeHours = 7.75;
-    }
-
     $bridgeCheck = db()->prepare(
         'SELECT COUNT(*)
          FROM leave_entries
@@ -292,7 +298,7 @@ function calculate_employee_balance(
     $bridgeAlreadyBooked = (int)$bridgeCheck->fetchColumn() > 0;
 
     if (!$bridgeAlreadyBooked) {
-        $used += $bridgeHours;
+        $used += $hoursPerDay;
     }
 
     /*
@@ -315,8 +321,7 @@ function calculate_employee_balance(
         $nextYearStart
     ]);
 
-    $creditMinutes = (int)$creditStmt->fetchColumn();
-    $creditHours = $creditMinutes / 60;
+    $creditHours = (int)$creditStmt->fetchColumn() / 60;
 
     /*
     |--------------------------------------------------------------------------
@@ -342,31 +347,310 @@ function calculate_employee_balance(
 
     /*
     |--------------------------------------------------------------------------
-    | Resterend saldo
+    | Verlof opgenomen in januari, februari en maart
     |--------------------------------------------------------------------------
     */
 
-    $totalAvailable = $annualAllowance + $creditHours;
+    $earlyLeaveStmt = db()->prepare(
+        'SELECT COALESCE(SUM(hours), 0)
+         FROM leave_entries
+         WHERE user_id = ?
+           AND booking_type = ?
+           AND start_date >= ?
+           AND start_date < ?'
+    );
+
+    $earlyLeaveStmt->execute([
+        $userId,
+        'leave',
+        $yearStart,
+        $marchEnd
+    ]);
+
+    $earlyLeaveHours = (float)$earlyLeaveStmt->fetchColumn();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Uitbetalingen in januari, februari en maart
+    |--------------------------------------------------------------------------
+    */
+
+    $earlyPayoutStmt = db()->prepare(
+        'SELECT COALESCE(SUM(hours), 0)
+         FROM leave_payouts
+         WHERE user_id = ?
+           AND payout_date >= ?
+           AND payout_date < ?'
+    );
+
+    $earlyPayoutStmt->execute([
+        $userId,
+        $yearStart,
+        $marchEnd
+    ]);
+
+    $earlyPayoutHours = (float)$earlyPayoutStmt->fetchColumn();
+
+    $earlyUsage = $earlyLeaveHours + $earlyPayoutHours;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Overgebleven uren van het vorige jaar berekenen
+    |--------------------------------------------------------------------------
+    */
+
+    $carryoverHours = 0.0;
+    $excessHours = 0.0;
+
+    if ($year >= 2027) {
+
+        $previousYearBalance = calculate_employee_balance(
+            $userId,
+            $year - 1,
+            $employee
+        );
+
+        $previousRemaining = max(
+            0,
+            (float)$previousYearBalance['remaining']
+        );
+
+        $maximumCarryover = $hoursPerDay * 5;
+
+        $carryoverHours = min(
+            $previousRemaining,
+            $maximumCarryover
+        );
+
+        $excessHours = max(
+            0,
+            $previousRemaining - $maximumCarryover
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Oud overschot eerst gebruiken
+    |--------------------------------------------------------------------------
+    */
+
+    $excessUsed = min($earlyUsage, $excessHours);
+
+    $excessRemaining = max(
+        0,
+        $excessHours - $excessUsed
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Vanaf 1 april vervalt het resterende overschot
+    |--------------------------------------------------------------------------
+    */
+
+    $today = date('Y-m-d');
+
+    if ($year < (int)date('Y') || $today >= $year . '-04-01') {
+        $excessRemaining = 0.0;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Nieuw jaarsaldo berekenen
+    |--------------------------------------------------------------------------
+    */
+
+    $totalAvailable = $annualAllowance
+        + $creditHours
+        + $carryoverHours;
 
     $remaining = $totalAvailable
         - $used
-        - $payoutHours;
-
-    $hoursPerDay = (float)$employee['leave_day_hours'];
-
-    if ($hoursPerDay <= 0) {
-        $hoursPerDay = 7.75;
-    }
+        - $payoutHours
+        + $excessUsed;
 
     return [
         'annual_allowance' => round($annualAllowance, 2),
         'credit_hours' => round($creditHours, 2),
-        'total_available' => round($totalAvailable, 2),
+        'carryover_hours' => round($carryoverHours, 2),
+        'excess_hours' => round($excessHours, 2),
+        'excess_used' => round($excessUsed, 2),
+        'excess_remaining' => round($excessRemaining, 2),
         'used' => round($used, 2),
         'payout_hours' => round($payoutHours, 2),
+        'total_available' => round($totalAvailable, 2),
         'remaining' => round($remaining, 2),
         'hours_per_day' => round($hoursPerDay, 2)
     ];
+}
+
+/*
+|--------------------------------------------------------------------------
+| Automatische meldingen voor oude verlofuren
+|--------------------------------------------------------------------------
+*/
+
+function create_carryover_notification(
+    int $userId,
+    array $employee
+): void {
+
+    $currentDate = date('Y-m-d');
+
+    $date = new DateTimeImmutable($currentDate);
+
+    $year = (int)$date->format('Y');
+    $month = (int)$date->format('n');
+
+    /*
+     * De regeling begint in 2027.
+     * Alleen januari, februari en maart tonen herinneringen.
+     */
+
+    if ($year < 2027 || !in_array($month, [1, 2, 3], true)) {
+
+        $stmt = db()->prepare(
+            'DELETE FROM notifications
+             WHERE user_id = ?
+               AND type = ?'
+        );
+
+        $stmt->execute([
+            $userId,
+            'carryover'
+        ]);
+
+        return;
+    }
+
+    $previousYear = $year - 1;
+
+    /*
+     * Eén vaste melding per jaar.
+     * Hierdoor ontstaan geen dubbele meldingen per maand.
+     */
+
+    $notificationKey = "carryover-{$year}";
+
+    $balance = calculate_employee_balance(
+        $userId,
+        $year,
+        $employee
+    );
+
+    $excessRemaining = (float)$balance['excess_remaining'];
+
+    /*
+     * Geen overtollige uren meer?
+     * Dan alle oude carryover-meldingen verwijderen.
+     */
+
+    if ($excessRemaining <= 0) {
+
+        $stmt = db()->prepare(
+            'DELETE FROM notifications
+             WHERE user_id = ?
+               AND type = ?'
+        );
+
+        $stmt->execute([
+            $userId,
+            'carryover'
+        ]);
+
+        return;
+    }
+
+    $hours = number_format(
+        $excessRemaining,
+        2,
+        ',',
+        '.'
+    );
+
+    $title = match ($month) {
+        1 => 'Verlofuren uit ' . $previousYear . ' gebruiken',
+        2 => 'Herinnering: oude verlofuren',
+        3 => 'Laatste herinnering: oude verlofuren'
+    };
+
+    $message = match ($month) {
+
+        1 => "Je hebt nog {$hours} uur aan overtollige verlofuren uit {$previousYear} openstaan. "
+            . "Gebruik deze uren of laat ze uitbetalen vóór 1 april {$year}.",
+
+        2 => "Je hebt nog {$hours} uur aan overtollige verlofuren uit {$previousYear} over. "
+            . "Vergeet niet deze uren uiterlijk 31 maart {$year} op te nemen of te laten uitbetalen.",
+
+        3 => "Laatste herinnering! Je hebt nog {$hours} uur aan overtollige verlofuren uit {$previousYear} openstaan. "
+            . "Gebruik of laat deze uren uiterlijk 31 maart {$year} uitbetalen. "
+            . "Vanaf 1 april vervalt het resterende overschot."
+    };
+
+    /*
+     * Oude maandelijkse meldingen opruimen.
+     * De nieuwe vaste melding blijft behouden.
+     */
+
+    $cleanupStmt = db()->prepare(
+        'DELETE FROM notifications
+         WHERE user_id = ?
+           AND type = ?
+           AND notification_key <> ?'
+    );
+
+    $cleanupStmt->execute([
+        $userId,
+        'carryover',
+        $notificationKey
+    ]);
+
+    /*
+     * De bestaande melding bijwerken.
+     * Er wordt geen dubbele melding aangemaakt.
+     */
+
+    $stmt = db()->prepare(
+        'INSERT INTO notifications
+            (user_id, type, title, message, notification_key)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+            title = VALUES(title),
+            message = VALUES(message)'
+    );
+
+    $stmt->execute([
+        $userId,
+        'carryover',
+        $title,
+        $message,
+        $notificationKey
+    ]);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Meldingen na een wijziging opnieuw berekenen
+|--------------------------------------------------------------------------
+*/
+
+function refresh_carryover_notification(int $userId): void
+{
+    $stmt = db()->prepare(
+        'SELECT * FROM users WHERE id = ?'
+    );
+
+    $stmt->execute([$userId]);
+
+    $employee = $stmt->fetch();
+
+    if (!$employee) {
+        return;
+    }
+
+    create_carryover_notification(
+        $userId,
+        $employee
+    );
 }
 
 /*
@@ -378,6 +662,54 @@ function calculate_employee_balance(
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Meldingen ophalen
+    |--------------------------------------------------------------------------
+    */
+
+    if (isset($_GET['notifications'])) {
+
+        refresh_carryover_notification(
+            (int)$user['id']
+        );
+
+        $notificationStmt = db()->prepare(
+            'SELECT
+                id,
+                type,
+                title,
+                message,
+                created_at,
+                read_at
+             FROM notifications
+             WHERE user_id = ?
+             ORDER BY created_at DESC, id DESC'
+        );
+
+        $notificationStmt->execute([
+            $user['id']
+        ]);
+
+        $notifications = $notificationStmt->fetchAll();
+
+        $unreadCount = 0;
+
+        foreach ($notifications as $notification) {
+
+            if ($notification['read_at'] === null) {
+                $unreadCount++;
+            }
+        }
+
+        echo json_encode([
+            'notifications' => $notifications,
+            'unread_count' => $unreadCount
+        ], JSON_UNESCAPED_UNICODE);
+
+        exit;
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -406,6 +738,10 @@ if ($method === 'GET') {
             'year' => $year,
             'annual_allowance' => $balance['annual_allowance'],
             'credit_hours' => $balance['credit_hours'],
+            'carryover_hours' => $balance['carryover_hours'],
+            'excess_hours' => $balance['excess_hours'],
+            'excess_used' => $balance['excess_used'],
+            'excess_remaining' => $balance['excess_remaining'],
             'total_available' => $balance['total_available'],
             'used' => $balance['used'],
             'payout_hours' => $balance['payout_hours'],
@@ -794,6 +1130,32 @@ $action = (string)($input['action'] ?? '');
 
 /*
 |--------------------------------------------------------------------------
+| Alle meldingen als gelezen markeren
+|--------------------------------------------------------------------------
+*/
+
+if ($action === 'mark_notifications_read') {
+
+    $stmt = db()->prepare(
+        'UPDATE notifications
+         SET read_at = NOW()
+         WHERE user_id = ?
+           AND read_at IS NULL'
+    );
+
+    $stmt->execute([
+        $user['id']
+    ]);
+
+    echo json_encode([
+        'ok' => true
+    ], JSON_UNESCAPED_UNICODE);
+
+    exit;
+}
+
+/*
+|--------------------------------------------------------------------------
 | Uitbetaling opslaan
 |--------------------------------------------------------------------------
 */
@@ -825,12 +1187,6 @@ if ($action === 'save_payout') {
         json_error('Het aantal uren moet groter zijn dan 0.');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Medewerker ophalen
-    |--------------------------------------------------------------------------
-    */
-
     $targetStmt = db()->prepare(
         'SELECT * FROM users WHERE id = ?'
     );
@@ -843,12 +1199,6 @@ if ($action === 'save_payout') {
         json_error('Medewerker niet gevonden.');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Saldo berekenen voor het jaar van de uitbetaling
-    |--------------------------------------------------------------------------
-    */
-
     $payoutYear = (int)substr($payoutDate, 0, 4);
 
     $balance = calculate_employee_balance(
@@ -857,20 +1207,20 @@ if ($action === 'save_payout') {
         $target
     );
 
-    if ($hours > $balance['remaining']) {
-        json_error(
-            'Er is onvoldoende verlofsaldo. ' .
-            'Het huidige resterende saldo is ' .
-            number_format($balance['remaining'], 2, ',', '.') .
-            ' uur.'
-        );
+    $maximumPayout = $balance['remaining'];
+
+    if ($payoutDate < $payoutYear . '-04-01') {
+        $maximumPayout += $balance['excess_remaining'];
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Uitbetaling opslaan
-    |--------------------------------------------------------------------------
-    */
+    if ($hours > $maximumPayout) {
+        json_error(
+            'Er is onvoldoende verlofsaldo. ' .
+            'Je kunt maximaal ' .
+            number_format(max(0, $maximumPayout), 2, ',', '.') .
+            ' uur uitbetalen.'
+        );
+    }
 
     db()->prepare(
         'INSERT INTO leave_payouts
@@ -882,6 +1232,8 @@ if ($action === 'save_payout') {
         $hours,
         mb_substr($note, 0, 255)
     ]);
+
+    refresh_carryover_notification($targetUser);
 
     echo json_encode([
         'ok' => true,
@@ -923,6 +1275,10 @@ if ($action === 'delete_payout') {
         'DELETE FROM leave_payouts WHERE id = ?'
     )->execute([$id]);
 
+    refresh_carryover_notification(
+        (int)$existing['user_id']
+    );
+
     echo json_encode(['ok' => true]);
 
     exit;
@@ -930,7 +1286,7 @@ if ($action === 'delete_payout') {
 
 /*
 |--------------------------------------------------------------------------
-| Tijd-voor-tijd opslaan of aanpassen
+| Tijd voor tijd opslaan of aanpassen
 |--------------------------------------------------------------------------
 */
 
@@ -970,17 +1326,21 @@ if ($action === 'save_credit') {
     $targetStmt = db()->prepare(
         'SELECT id FROM users WHERE id = ?'
     );
+
     $targetStmt->execute([$targetUser]);
 
     if (!$targetStmt->fetch()) {
         json_error('Medewerker niet gevonden.');
     }
 
+    $oldTargetUser = null;
+
     if ($id > 0) {
 
         $existingStmt = db()->prepare(
             'SELECT * FROM time_credits WHERE id = ?'
         );
+
         $existingStmt->execute([$id]);
         $existing = $existingStmt->fetch();
 
@@ -989,6 +1349,8 @@ if ($action === 'save_credit') {
         }
 
         check_entry_access($user, $existing);
+
+        $oldTargetUser = (int)$existing['user_id'];
 
         if ($user['role'] !== 'admin') {
             $targetUser = (int)$user['id'];
@@ -1020,6 +1382,12 @@ if ($action === 'save_credit') {
         ]);
     }
 
+    if ($oldTargetUser !== null && $oldTargetUser !== $targetUser) {
+        refresh_carryover_notification($oldTargetUser);
+    }
+
+    refresh_carryover_notification($targetUser);
+
     echo json_encode([
         'ok' => true,
         'minutes' => $minutes,
@@ -1031,7 +1399,7 @@ if ($action === 'save_credit') {
 
 /*
 |--------------------------------------------------------------------------
-| Tijd-voor-tijd verwijderen
+| Tijd voor tijd verwijderen
 |--------------------------------------------------------------------------
 */
 
@@ -1048,6 +1416,7 @@ if ($action === 'delete_credit') {
     $stmt = db()->prepare(
         'SELECT * FROM time_credits WHERE id = ?'
     );
+
     $stmt->execute([$id]);
 
     $existing = $stmt->fetch();
@@ -1061,6 +1430,10 @@ if ($action === 'delete_credit') {
     db()->prepare(
         'DELETE FROM time_credits WHERE id = ?'
     )->execute([$id]);
+
+    refresh_carryover_notification(
+        (int)$existing['user_id']
+    );
 
     echo json_encode(['ok' => true]);
     exit;
@@ -1151,6 +1524,7 @@ if ($action === 'save') {
     $stmt = db()->prepare(
         'SELECT * FROM users WHERE id = ?'
     );
+
     $stmt->execute([$targetUser]);
     $target = $stmt->fetch();
 
@@ -1239,11 +1613,14 @@ if ($action === 'save') {
     |--------------------------------------------------------------------------
     */
 
+    $oldTargetUser = null;
+
     if ($id > 0) {
 
         $stmt = db()->prepare(
             'SELECT * FROM leave_entries WHERE id = ?'
         );
+
         $stmt->execute([$id]);
         $existing = $stmt->fetch();
 
@@ -1252,6 +1629,8 @@ if ($action === 'save') {
         }
 
         check_entry_access($user, $existing);
+
+        $oldTargetUser = (int)$existing['user_id'];
 
         if ($user['role'] !== 'admin') {
             $targetUser = (int)$user['id'];
@@ -1317,6 +1696,18 @@ if ($action === 'save') {
         ]);
     }
 
+    /*
+     * Na de wijziging de melding opnieuw berekenen.
+     * Als een admin de boeking naar een andere medewerker verplaatst,
+     * wordt ook de melding van de oude medewerker bijgewerkt.
+     */
+
+    if ($oldTargetUser !== null && $oldTargetUser !== $targetUser) {
+        refresh_carryover_notification($oldTargetUser);
+    }
+
+    refresh_carryover_notification($targetUser);
+
     echo json_encode([
         'ok' => true,
         'hours' => $hours,
@@ -1339,6 +1730,7 @@ if ($action === 'delete') {
     $stmt = db()->prepare(
         'SELECT * FROM leave_entries WHERE id = ?'
     );
+
     $stmt->execute([$id]);
 
     $existing = $stmt->fetch();
@@ -1352,6 +1744,10 @@ if ($action === 'delete') {
     db()->prepare(
         'DELETE FROM leave_entries WHERE id = ?'
     )->execute([$id]);
+
+    refresh_carryover_notification(
+        (int)$existing['user_id']
+    );
 
     echo json_encode(['ok' => true]);
     exit;

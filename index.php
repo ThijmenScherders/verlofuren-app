@@ -233,6 +233,23 @@ $roleLabel = $user['role'] === 'admin'
             <?php endif; ?>
         </span>
 
+        <!-- Meldingenknop -->
+
+        <button
+            type="button"
+            class="notification-button"
+            id="notificationButton"
+            aria-label="Meldingen bekijken"
+            title="Meldingen"
+        >
+           <span class="notification-bell">💡</span>
+
+            <span
+                class="notification-badge hidden"
+                id="notificationBadge"
+            ></span>
+        </button>
+
         <?php if ($user['role'] === 'admin'): ?>
             <a href="medewerkers.php">Medewerkers</a>
             <a href="admin.php">Admin</a>
@@ -417,6 +434,34 @@ $roleLabel = $user['role'] === 'admin'
     </p>
 
 </main>
+
+<!-- Meldingenvenster -->
+
+<dialog id="notificationDialog">
+
+    <div class="modal-heading">
+        <div>
+            <p class="eyebrow">OVERZICHT</p>
+            <h2>Meldingen</h2>
+        </div>
+
+        <button
+            type="button"
+            class="icon-button"
+            id="closeNotificationDialog"
+            aria-label="Sluiten"
+        >
+            ×
+        </button>
+    </div>
+
+    <div id="notificationList">
+        <p class="muted">
+            Meldingen worden geladen...
+        </p>
+    </div>
+
+</dialog>
 
 <!-- Formulier voor verlofuren uitbetalen -->
 
