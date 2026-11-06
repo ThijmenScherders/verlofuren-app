@@ -56,12 +56,12 @@ Voor een echte openbare server: gebruik HTTPS, stel een sterk databasewachtwoord
  4* Uitbetalen (Datum kunnen kiezen dat er uren van resterende saldo worden afgeboekt) (Done !!)
  5* Bij de resterende saldo het jaartal bij zetten.
  6* Rol van persoon + werknemersnummer toevoegen en  rechtsbovenin zetten. (Done!!)
- 7* meldingen voor verlofuren (Max 5 dagen meenemen) de rest moet in jan / feb / maart gebruikt zijn. of uitlatenbetalen.
+ 7* meldingen voor verlofuren (Max 5 dagen meenemen) de rest moet in jan / feb / maart gebruikt zijn. of uitlatenbetalen.(Done !!!  but  more test when time is their (Jan 2027))
 
  8* Verlof aanvraag doen bij manager van de afdelingen  manager moet akkord geven
 
 
 Must= have = 1 (Done) + 2 (Done) + 3 + 5
-Could have = 4 (Done) + 6 (Done) + 7 + 8
+Could have = 4 (Done) + 6 (Done) + 7(Done maar testen moet later nog wel gedan worden om te kijken of die helemaal werkt) + 8
 
 Can have =  
