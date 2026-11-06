@@ -37,6 +37,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const payoutNoteInput = document.getElementById('payoutNote');
     const payoutEmployeeInput = document.getElementById('payoutEmployeeId');
 
+    // Elementen voor meldingen.
+    const notificationButton =
+        document.getElementById('notificationButton');
+
+    const notificationBadge =
+        document.getElementById('notificationBadge');
+
+    const notificationDialog =
+        document.getElementById('notificationDialog');
+
+    const notificationList =
+        document.getElementById('notificationList');
+
+    const closeNotificationDialog =
+        document.getElementById('closeNotificationDialog');
+
     const ANNUAL_ALLOWANCE = 193.75;
 
     let calendar;
@@ -73,6 +89,208 @@ document.addEventListener('DOMContentLoaded', () => {
         return data;
 
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Meldingen
+    |--------------------------------------------------------------------------
+    */
+
+    // Het rode puntje bij de meldingenknop aanpassen.
+    function updateNotificationBadge(unreadCount) {
+
+        if (!notificationBadge) return;
+
+        notificationBadge.classList.toggle(
+            'hidden',
+            Number(unreadCount) <= 0
+        );
+
+    }
+
+    // Datum van een melding netjes weergeven.
+    function formatNotificationDate(dateValue) {
+
+        if (!dateValue) return '';
+
+        const date = new Date(
+            dateValue.replace(' ', 'T')
+        );
+
+        if (Number.isNaN(date.getTime())) {
+            return dateValue;
+        }
+
+        return date.toLocaleString('nl-NL', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+    }
+
+    // Meldingen in het venster tonen.
+    function renderNotifications(notifications) {
+
+        if (!notificationList) return;
+
+        notificationList.replaceChildren();
+
+        if (!notifications || notifications.length === 0) {
+
+            const emptyMessage = document.createElement('p');
+
+            emptyMessage.className = 'muted';
+            emptyMessage.textContent = 'Je hebt momenteel geen meldingen.';
+
+            notificationList.appendChild(emptyMessage);
+
+            return;
+
+        }
+
+        notifications.forEach((notification) => {
+
+            const item = document.createElement('div');
+
+            item.className = 'notification-item';
+
+            if (!notification.read_at) {
+                item.classList.add('unread');
+            }
+
+            const title = document.createElement('h3');
+
+            title.textContent = notification.title;
+
+            const message = document.createElement('p');
+
+            message.textContent = notification.message;
+
+            const date = document.createElement('small');
+
+            date.textContent = formatNotificationDate(
+                notification.created_at
+            );
+
+            item.append(
+                title,
+                message,
+                date
+            );
+
+            notificationList.appendChild(item);
+
+        });
+
+    }
+
+    // Meldingen ophalen uit de database.
+    async function loadNotifications() {
+
+        if (!notificationButton || !notificationBadge) return;
+
+        try {
+
+            const data = await request('api.php?notifications=1');
+
+            const notifications = data.notifications || [];
+
+            renderNotifications(notifications);
+
+            updateNotificationBadge(data.unread_count || 0);
+
+        } catch (err) {
+
+            console.error('Meldingen ophalen mislukt:', err);
+
+        }
+
+    }
+
+    // Alle ongelezen meldingen als gelezen markeren.
+    async function markNotificationsRead() {
+
+        try {
+
+            await request('api.php', {
+
+                method: 'POST',
+
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+
+                body: JSON.stringify({
+
+                    action: 'mark_notifications_read',
+
+                    csrf: window.APP_CONFIG.csrf
+
+                })
+
+            });
+
+            updateNotificationBadge(0);
+
+            // De meldingen opnieuw ophalen zodat de weergave klopt.
+            await loadNotifications();
+
+        } catch (err) {
+
+            console.error('Meldingen markeren als gelezen mislukt:', err);
+
+        }
+
+    }
+
+    // Meldingenvenster openen.
+    async function openNotificationDialog() {
+
+        if (!notificationDialog) return;
+
+        notificationDialog.showModal();
+
+        if (notificationList) {
+            notificationList.textContent = 'Meldingen worden geladen...';
+        }
+
+        await loadNotifications();
+
+        await markNotificationsRead();
+
+    }
+
+    // Klik op de meldingenknop.
+    if (notificationButton && notificationDialog) {
+
+        notificationButton.addEventListener(
+            'click',
+            openNotificationDialog
+        );
+
+    }
+
+    // Meldingenvenster sluiten.
+    if (closeNotificationDialog && notificationDialog) {
+
+        closeNotificationDialog.addEventListener(
+            'click',
+            () => notificationDialog.close()
+        );
+
+    }
+
+    // Bij het openen van de app controleren op nieuwe meldingen.
+    loadNotifications();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Saldo
+    |--------------------------------------------------------------------------
+    */
 
     async function updateBalance(year) {
 
@@ -153,6 +371,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Uitbetalingen
+    |--------------------------------------------------------------------------
+    */
 
     // Uitbetalingsgeschiedenis ophalen.
     async function loadPayoutHistory(year = currentBalanceYear) {
@@ -441,6 +665,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Boekingen
+    |--------------------------------------------------------------------------
+    */
+
     // Weergave aanpassen aan het soort boeking.
     const setEntryTypeUI = () => {
 
@@ -627,7 +857,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Kalender aanmaken.
+    /*
+    |--------------------------------------------------------------------------
+    | Kalender aanmaken
+    |--------------------------------------------------------------------------
+    */
+
     calendar = new FullCalendar.Calendar(calendarEl, {
 
         locale: 'nl',
@@ -745,7 +980,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     calendar.render();
 
-    // Knoppen voor boekingen.
+    /*
+    |--------------------------------------------------------------------------
+    | Knoppen voor boekingen
+    |--------------------------------------------------------------------------
+    */
+
     document.getElementById('addLeave').addEventListener(
         'click',
         () => openNew()
@@ -761,7 +1001,12 @@ document.addEventListener('DOMContentLoaded', () => {
         () => dialog.close()
     );
 
-    // Knoppen voor uitbetalingen.
+    /*
+    |--------------------------------------------------------------------------
+    | Knoppen voor uitbetalingen
+    |--------------------------------------------------------------------------
+    */
+
     const addPayoutButton = document.getElementById('addPayout');
 
     if (addPayoutButton && payoutDialog) {
@@ -808,7 +1053,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Boeking opslaan.
+    /*
+    |--------------------------------------------------------------------------
+    | Boeking opslaan
+    |--------------------------------------------------------------------------
+    */
+
     form.addEventListener('submit', async (event) => {
 
         event.preventDefault();
@@ -930,7 +1180,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     });
 
-    // Boeking verwijderen.
+    /*
+    |--------------------------------------------------------------------------
+    | Boeking verwijderen
+    |--------------------------------------------------------------------------
+    */
+
     deleteButton.addEventListener('click', async () => {
 
         if (!confirm('Weet je zeker dat je deze boeking wilt verwijderen?')) {
