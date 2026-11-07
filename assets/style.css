@@ -669,7 +669,7 @@ input:focus, select:focus {
 
 .week-grid {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(65px, 1fr));
     gap: 10px;
 }
 
@@ -678,9 +678,10 @@ input:focus, select:focus {
 }
 
 .week-grid input {
-    padding: 9px 7px;
+    width: 100%;
+    padding: 9px 10px;
+    box-sizing: border-box;
 }
-
 /* Tabellen */
 
 .table-wrap {
@@ -1137,6 +1138,12 @@ dialog form {
     display: block;
     margin-top: 8px;
     color: #64748b;
+}
+
+.compact-form input[type="number"] {
+    width: 100%;
+    min-width: 140px;
+    box-sizing: border-box;
 }
 
 
