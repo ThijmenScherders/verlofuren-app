@@ -1,3 +1,4 @@
+
 <?php
 require_once __DIR__ . '/config.php';
 
@@ -117,6 +118,31 @@ $employees = db()->query(
 </head>
 
 <body>
+
+<header class="topbar">
+    <a class="brand" href="index.php">
+        <span class="brand-mark small-mark">V</span>
+        Verlofuren
+    </a>
+
+    <nav>
+        <span class="user-greeting">
+            <span class="user-name"><?= e($user['name']) ?></span>
+            <span class="user-role">Beheerder</span>
+
+            <?php if (!empty($user['work_number'])): ?>
+                <span class="user-work-number">
+                    Werknummer: <?= e($user['work_number']) ?>
+                </span>
+            <?php endif; ?>
+        </span>
+
+        <a href="medewerkers.php">Medewerkers</a>
+        <a href="admin.php">Admin</a>
+        <a href="export.php">Export CSV</a>
+        <a href="logout.php">Uitloggen</a>
+    </nav>
+</header>
 
 <main class="container">
 
