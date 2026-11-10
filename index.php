@@ -378,6 +378,11 @@ $roleLabel = $user['role'] === 'admin'
         </span>
 
         <span>
+            <i class="dot" style="background-color: #7c3aed;"></i>
+            Specialist
+        </span>
+
+        <span>
             <i class="dot time-credit-dot"></i>
             Tijd voor tijd
         </span>
@@ -430,7 +435,7 @@ $roleLabel = $user['role'] === 'admin'
         Een volledige werkdag is 7,75 uur, van 08:45 tot 16:30.
         Feestdagen worden niet van de automatische berekening afgetrokken.
         De vrijdag na Hemelvaartsdag wordt automatisch als verplichte vrije dag meegerekend.
-        Ziek, doktersafspraken en tandartsafspraken kosten geen verlofuren.
+        Ziek, doktersafspraken, tandartsafspraken en specialistafspraken kosten geen verlofuren.
     </p>
 
 </main>
@@ -597,6 +602,7 @@ $roleLabel = $user['role'] === 'admin'
                 <option value="sick">Ziek</option>
                 <option value="doctor">Dokter</option>
                 <option value="dentist">Tandarts</option>
+                <option value="specialist">Specialist</option>
                 <option value="time_credit">Tijd voor tijd</option>
             </select>
         </label>
@@ -676,7 +682,7 @@ $roleLabel = $user['role'] === 'admin'
             <p class="muted">
                 Normale werktijden: 08:45 tot 16:30 (7,75 uur).
                 Je kunt de tijden per verlofboeking aanpassen.
-                Bij ziek, dokter en tandarts worden geen verlofuren berekend.
+                Bij ziek, dokter, tandarts en specialist worden geen verlofuren berekend.
             </p>
 
             <label id="calculationWrap">
@@ -792,3 +798,4 @@ window.APP_CONFIG = {
 
 </body>
 </html>
+

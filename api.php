@@ -229,11 +229,6 @@ function calculate_employee_balance(
     array $employee
 ): array {
 
-    /*
-     * Geen statische cache gebruiken.
-     * Zo wordt het saldo na een wijziging opnieuw uit de database gelezen.
-     */
-
     $yearStart = $year . '-01-01';
     $nextYearStart = ($year + 1) . '-01-01';
     $marchEnd = $year . '-04-01';
@@ -501,11 +496,6 @@ function create_carryover_notification(
     $year = (int)$date->format('Y');
     $month = (int)$date->format('n');
 
-    /*
-     * De regeling begint in 2027.
-     * Alleen januari, februari en maart tonen herinneringen.
-     */
-
     if ($year < 2027 || !in_array($month, [1, 2, 3], true)) {
 
         $stmt = db()->prepare(
@@ -524,11 +514,6 @@ function create_carryover_notification(
 
     $previousYear = $year - 1;
 
-    /*
-     * Eén vaste melding per jaar.
-     * Hierdoor ontstaan geen dubbele meldingen per maand.
-     */
-
     $notificationKey = "carryover-{$year}";
 
     $balance = calculate_employee_balance(
@@ -538,11 +523,6 @@ function create_carryover_notification(
     );
 
     $excessRemaining = (float)$balance['excess_remaining'];
-
-    /*
-     * Geen overtollige uren meer?
-     * Dan alle oude carryover-meldingen verwijderen.
-     */
 
     if ($excessRemaining <= 0) {
 
@@ -586,11 +566,6 @@ function create_carryover_notification(
             . "Vanaf 1 april vervalt het resterende overschot."
     };
 
-    /*
-     * Oude maandelijkse meldingen opruimen.
-     * De nieuwe vaste melding blijft behouden.
-     */
-
     $cleanupStmt = db()->prepare(
         'DELETE FROM notifications
          WHERE user_id = ?
@@ -603,11 +578,6 @@ function create_carryover_notification(
         'carryover',
         $notificationKey
     ]);
-
-    /*
-     * De bestaande melding bijwerken.
-     * Er wordt geen dubbele melding aangemaakt.
-     */
 
     $stmt = db()->prepare(
         'INSERT INTO notifications
@@ -864,7 +834,7 @@ if ($method === 'GET') {
 
     /*
     |--------------------------------------------------------------------------
-    | Verlof, ziek, dokter en tandarts ophalen
+    | Verlof, ziek, dokter, tandarts en specialist ophalen
     |--------------------------------------------------------------------------
     */
 
@@ -895,6 +865,12 @@ if ($method === 'GET') {
                 $borderColor = '#115e59';
                 break;
 
+            case 'specialist':
+                $title = $prefix . 'Specialistafspraak' . $noteText;
+                $backgroundColor = '#7c3aed';
+                $borderColor = '#6d28d9';
+                break;
+
             case 'leave':
             default:
                 $title =
@@ -916,6 +892,8 @@ if ($method === 'GET') {
             $classNames[] = 'doctor-event';
         } elseif ($bookingType === 'dentist') {
             $classNames[] = 'dentist-event';
+        } elseif ($bookingType === 'specialist') {
+            $classNames[] = 'specialist-event';
         }
 
         $events[] = [
@@ -1441,7 +1419,7 @@ if ($action === 'delete_credit') {
 
 /*
 |--------------------------------------------------------------------------
-| Verlof, ziek, dokter of tandarts opslaan of aanpassen
+| Verlof, ziek, dokter, tandarts of specialist opslaan of aanpassen
 |--------------------------------------------------------------------------
 */
 
@@ -1466,7 +1444,8 @@ if ($action === 'save') {
         'leave',
         'sick',
         'doctor',
-        'dentist'
+        'dentist',
+        'specialist'
     ];
 
     if (!in_array($bookingType, $allowedTypes, true)) {
@@ -1477,7 +1456,7 @@ if ($action === 'save') {
 
     $isAppointment = in_array(
         $bookingType,
-        ['doctor', 'dentist'],
+        ['doctor', 'dentist', 'specialist'],
         true
     );
 
@@ -1534,7 +1513,7 @@ if ($action === 'save') {
 
     /*
     |--------------------------------------------------------------------------
-    | Ziek, dokter en tandarts kosten geen verlofuren
+    | Ziek, dokter, tandarts en specialist kosten geen verlofuren
     |--------------------------------------------------------------------------
     */
 
@@ -1719,7 +1698,7 @@ if ($action === 'save') {
 
 /*
 |--------------------------------------------------------------------------
-| Verlof, ziek, dokter of tandarts verwijderen
+| Verlof, ziek, dokter, tandarts of specialist verwijderen
 |--------------------------------------------------------------------------
 */
 

@@ -1,4 +1,5 @@
 
+
 document.addEventListener('DOMContentLoaded', () => {
 
     const calendarEl = document.getElementById('calendar');
@@ -678,7 +679,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isCredit = type === 'time_credit';
         const isSick = type === 'sick';
-        const isAppointment = type === 'doctor' || type === 'dentist';
+
+        const isAppointment = [
+            'doctor',
+            'dentist',
+            'specialist'
+        ].includes(type);
 
         const isNonLeave = isCredit || isSick || isAppointment;
 
@@ -711,7 +717,8 @@ document.addEventListener('DOMContentLoaded', () => {
             sick: 'Ziekte registreren',
             time_credit: 'Tijd-voor-tijd toevoegen',
             doctor: 'Doktersafspraak registreren',
-            dentist: 'Tandartsafspraak registreren'
+            dentist: 'Tandartsafspraak registreren',
+            specialist: 'Specialistafspraak registreren'
         };
 
         document.getElementById('dialogTitle').textContent =
@@ -722,10 +729,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handmatige berekening tonen of verbergen.
     const setModeUI = () => {
 
-        const isNonLeave =
-            entryType.value === 'sick' ||
-            entryType.value === 'doctor' ||
-            entryType.value === 'dentist';
+        const isNonLeave = [
+            'sick',
+            'doctor',
+            'dentist',
+            'specialist'
+        ].includes(entryType.value);
 
         hoursWrap.classList.toggle(
             'hidden',
@@ -802,7 +811,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 'leave',
                 'sick',
                 'doctor',
-                'dentist'
+                'dentist',
+                'specialist'
             ].includes(p.entry_type)
                 ? p.entry_type
                 : 'leave';
@@ -845,7 +855,8 @@ document.addEventListener('DOMContentLoaded', () => {
             sick: 'Ziekte aanpassen',
             time_credit: 'Tijd-voor-tijd aanpassen',
             doctor: 'Doktersafspraak aanpassen',
-            dentist: 'Tandartsafspraak aanpassen'
+            dentist: 'Tandartsafspraak aanpassen',
+            specialist: 'Specialistafspraak aanpassen'
         };
 
         document.getElementById('dialogTitle').textContent =
@@ -972,6 +983,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (type === 'dentist') {
                 info.el.classList.add('dentist-event');
+                return;
+            }
+
+            if (type === 'specialist') {
+                info.el.classList.add('specialist-event');
             }
 
         }
@@ -1069,7 +1085,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isCredit = type === 'time_credit';
         const isSick = type === 'sick';
-        const isAppointment = type === 'doctor' || type === 'dentist';
+
+        const isAppointment = [
+            'doctor',
+            'dentist',
+            'specialist'
+        ].includes(type);
 
         const isNonLeave = isSick || isAppointment;
 
