@@ -1,4 +1,3 @@
-
 <?php
 
 require_once __DIR__ . '/config.php';
@@ -635,6 +634,35 @@ if ($method === 'GET') {
 
     /*
     |--------------------------------------------------------------------------
+    | Aanvragen ophalen voor de admin
+    |--------------------------------------------------------------------------
+    */
+
+    if (isset($_GET['requests'])) {
+
+        if ($user['role'] !== 'admin') {
+            json_error('Geen toegang.', 403);
+        }
+
+        $stmt = db()->query(
+            "SELECT
+                r.*,
+                u.name AS employee_name
+             FROM leave_requests r
+             JOIN users u ON u.id = r.user_id
+             WHERE r.status = 'pending'
+             ORDER BY r.created_at ASC"
+        );
+
+        echo json_encode([
+            'requests' => $stmt->fetchAll()
+        ], JSON_UNESCAPED_UNICODE);
+
+        exit;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Meldingen ophalen
     |--------------------------------------------------------------------------
     */
@@ -834,7 +862,7 @@ if ($method === 'GET') {
 
     /*
     |--------------------------------------------------------------------------
-    | Verlof, ziek, dokter, tandarts en specialist ophalen
+    | Definitieve boekingen ophalen
     |--------------------------------------------------------------------------
     */
 
@@ -911,6 +939,101 @@ if ($method === 'GET') {
 
             'extendedProps' => [
                 'entry_type' => $bookingType,
+                'user_id' => (int)$r['user_id'],
+                'hours' => (float)$r['hours'],
+                'mode' => $r['calculation_mode'],
+                'note' => $r['note'],
+                'name' => $r['name'],
+                'start_time' => $r['start_time'],
+                'end_time' => $r['end_time'],
+                'request_status' => 'approved'
+            ]
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Aanvragen in afwachting ophalen voor de kalender
+    |--------------------------------------------------------------------------
+    */
+
+    $requestSql = 'SELECT
+                    r.*,
+                    u.name
+                   FROM leave_requests r
+                   JOIN users u ON u.id = r.user_id
+                   WHERE r.status = ?
+                     AND r.start_date <= ?
+                     AND r.end_date >= ?';
+
+    $requestParams = ['pending', $end, $start];
+
+    if (!$isAdmin) {
+        $requestSql .= ' AND r.user_id = ?';
+        $requestParams[] = $user['id'];
+    }
+
+    $requestSql .= ' ORDER BY r.start_date ASC';
+
+    $requestStmt = db()->prepare($requestSql);
+    $requestStmt->execute($requestParams);
+
+    foreach ($requestStmt->fetchAll() as $r) {
+
+        $bookingType = $r['booking_type'];
+
+        $prefix = $isAdmin ? $r['name'] . ' — ' : '';
+        $noteText = $r['note'] ? ' · ' . $r['note'] : '';
+
+        switch ($bookingType) {
+
+            case 'doctor':
+                $title = $prefix . 'Doktersafspraak' . $noteText;
+                $backgroundColor = '#60a5fa';
+                $borderColor = '#2563eb';
+                break;
+
+            case 'dentist':
+                $title = $prefix . 'Tandartsafspraak' . $noteText;
+                $backgroundColor = '#5eead4';
+                $borderColor = '#0f766e';
+                break;
+
+            case 'specialist':
+                $title = $prefix . 'Specialistafspraak' . $noteText;
+                $backgroundColor = '#c4b5fd';
+                $borderColor = '#7c3aed';
+                break;
+
+            case 'leave':
+            default:
+                $title = $prefix .
+                    number_format((float)$r['hours'], 2, ',', '.') .
+                    ' uur verlof';
+                $backgroundColor = '#fca5a5';
+                $borderColor = '#dc2626';
+                break;
+        }
+
+        $events[] = [
+            'id' => 'request-' . $r['id'],
+            'title' => '⏳ In afwachting — ' . $title,
+            'start' => $r['start_date'],
+            'end' => (new DateTimeImmutable($r['end_date']))
+                ->modify('+1 day')
+                ->format('Y-m-d'),
+            'allDay' => true,
+            'backgroundColor' => $backgroundColor,
+            'borderColor' => $borderColor,
+            'textColor' => '#1e293b',
+            'classNames' => ['pending-request-event'],
+            'editable' => false,
+
+            'extendedProps' => [
+                'entry_type' => $bookingType,
+                'request_id' => (int)$r['id'],
+                'request_status' => 'pending',
+                'pending_request' => true,
                 'user_id' => (int)$r['user_id'],
                 'hours' => (float)$r['hours'],
                 'mode' => $r['calculation_mode'],
@@ -1095,7 +1218,15 @@ if ($method !== 'POST') {
     json_error('Methode niet toegestaan.', 405);
 }
 
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+/*
+ * Eerst JSON proberen te lezen.
+ * Als er geen JSON is ontvangen, gebruiken we formuliergegevens.
+ */
+$input = json_decode(file_get_contents('php://input'), true);
+
+if (!is_array($input)) {
+    $input = $_POST;
+}
 
 if (!hash_equals(
     csrf_token(),
@@ -1105,6 +1236,228 @@ if (!hash_equals(
 }
 
 $action = (string)($input['action'] ?? '');
+
+/*
+|--------------------------------------------------------------------------
+| Eigen aanvraag verwijderen zolang deze in afwachting is
+|--------------------------------------------------------------------------
+*/
+
+if ($action === 'delete_request') {
+
+    // Een admin kan deze actie niet gebruiken.
+    if ($user['role'] === 'admin') {
+        json_error(
+            'Een admin kan deze aanvraag niet op deze manier verwijderen.',
+            403
+        );
+    }
+
+    $requestId = (int)($input['request_id'] ?? 0);
+
+    if ($requestId <= 0) {
+        json_error('Ongeldige aanvraag.');
+    }
+
+    /*
+     * Alleen de eigenaar van de aanvraag kan deze verwijderen.
+     * De aanvraag moet bovendien nog in afwachting zijn.
+     */
+    $stmt = db()->prepare(
+        "DELETE FROM leave_requests
+         WHERE id = ?
+           AND user_id = ?
+           AND status = 'pending'"
+    );
+
+    $stmt->execute([
+        $requestId,
+        $user['id']
+    ]);
+
+    if ($stmt->rowCount() === 0) {
+        json_error(
+            'Deze aanvraag bestaat niet meer of is al beoordeeld.',
+            404
+        );
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'success' => true
+    ], JSON_UNESCAPED_UNICODE);
+
+    exit;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Aanvraag goedkeuren of afwijzen
+|--------------------------------------------------------------------------
+*/
+
+if (in_array($action, ['approve_request', 'reject_request'], true)) {
+
+    if ($user['role'] !== 'admin') {
+        json_error('Alleen een admin kan aanvragen beoordelen.', 403);
+    }
+
+    /*
+     * Zowel request_id als id accepteren.
+     * admin.php verstuurt request_id.
+     */
+    $requestId = (int)($input['request_id'] ?? $input['id'] ?? 0);
+
+    if ($requestId <= 0) {
+        json_error('Ongeldige aanvraag.');
+    }
+
+    $pdo = db();
+
+    try {
+
+        $pdo->beginTransaction();
+
+        $stmt = $pdo->prepare(
+            'SELECT *
+             FROM leave_requests
+             WHERE id = ?
+             FOR UPDATE'
+        );
+
+        $stmt->execute([$requestId]);
+        $request = $stmt->fetch();
+
+        if (!$request) {
+            throw new RuntimeException('Aanvraag niet gevonden.');
+        }
+
+        if ($request['status'] !== 'pending') {
+            throw new RuntimeException(
+                'Deze aanvraag is al beoordeeld.'
+            );
+        }
+
+        $employeeId = (int)$request['user_id'];
+
+        if ($action === 'approve_request') {
+
+            $insert = $pdo->prepare(
+                'INSERT INTO leave_entries (
+                    user_id,
+                    start_date,
+                    end_date,
+                    start_time,
+                    end_time,
+                    hours,
+                    calculation_mode,
+                    booking_type,
+                    note
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+
+            $insert->execute([
+                $employeeId,
+                $request['start_date'],
+                $request['end_date'],
+                $request['start_time'],
+                $request['end_time'],
+                $request['hours'],
+                $request['calculation_mode'],
+                $request['booking_type'],
+                $request['note']
+            ]);
+
+            $entryId = (int)$pdo->lastInsertId();
+
+            $update = $pdo->prepare(
+                "UPDATE leave_requests
+                 SET status = 'approved',
+                     entry_id = ?,
+                     reviewed_at = NOW(),
+                     reviewed_by = ?
+                 WHERE id = ?"
+            );
+
+            $update->execute([
+                $entryId,
+                $user['id'],
+                $requestId
+            ]);
+
+            $title = 'Aanvraag goedgekeurd';
+            $message = 'Je aanvraag voor ' .
+                $request['start_date'] .
+                ' is goedgekeurd.';
+
+        } else {
+
+            $update = $pdo->prepare(
+                "UPDATE leave_requests
+                 SET status = 'rejected',
+                     reviewed_at = NOW(),
+                     reviewed_by = ?
+                 WHERE id = ?"
+            );
+
+            $update->execute([
+                $user['id'],
+                $requestId
+            ]);
+
+            $title = 'Aanvraag afgewezen';
+            $message = 'Je aanvraag voor ' .
+                $request['start_date'] .
+                ' is afgewezen.';
+        }
+
+        $notification = $pdo->prepare(
+            'INSERT INTO notifications (
+                user_id,
+                type,
+                title,
+                message,
+                notification_key
+            ) VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                title = VALUES(title),
+                message = VALUES(message),
+                read_at = NULL'
+        );
+
+        $notification->execute([
+            $employeeId,
+            'request',
+            $title,
+            $message,
+            'request-' . $requestId
+        ]);
+
+        $pdo->commit();
+
+        if ($action === 'approve_request') {
+            refresh_carryover_notification($employeeId);
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'success' => true,
+            'status' => $action === 'approve_request'
+                ? 'approved'
+                : 'rejected'
+        ], JSON_UNESCAPED_UNICODE);
+
+        exit;
+
+    } catch (Throwable $e) {
+
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        json_error($e->getMessage());
+    }
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -1584,6 +1937,60 @@ if ($action === 'save') {
 
     if ($bookingType === 'leave' && $hours <= 0) {
         json_error('Deze verlofboeking bevat geen verlofuren.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Nieuwe aanvraag van een medewerker opslaan
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        $user['role'] !== 'admin' &&
+        $id === 0 &&
+        in_array($bookingType, [
+            'leave',
+            'doctor',
+            'dentist',
+            'specialist'
+        ], true)
+    ) {
+
+        $stmt = db()->prepare(
+            "INSERT INTO leave_requests (
+                user_id,
+                start_date,
+                end_date,
+                start_time,
+                end_time,
+                hours,
+                calculation_mode,
+                booking_type,
+                note,
+                status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
+        );
+
+        $stmt->execute([
+            $user['id'],
+            $start,
+            $end,
+            $startTime,
+            $endTime,
+            $hours,
+            $mode,
+            $bookingType,
+            mb_substr($note, 0, 255)
+        ]);
+
+        echo json_encode([
+            'ok' => true,
+            'pending' => true,
+            'hours' => $hours,
+            'booking_type' => $bookingType
+        ], JSON_UNESCAPED_UNICODE);
+
+        exit;
     }
 
     /*

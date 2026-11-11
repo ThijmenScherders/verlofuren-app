@@ -1167,4 +1167,403 @@ dialog form {
         min-width: 140px;
         box-sizing: border-box;
     }
+
+
+    /* =========================================
+   Verbeterde pop-ups en modals
+========================================= */
+
+/* Algemene pop-up */
+
+dialog {
+    width: min(540px, calc(100% - 32px));
+    max-height: min(90vh, 850px);
+    overflow-y: auto;
+    padding: 30px;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #ffffff;
+    color: var(--ink);
+    box-shadow: 0 25px 80px rgba(15, 23, 42, 0.22);
+    animation: modalAppear 0.2s ease-out;
+}
+
+dialog::backdrop {
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(4px);
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Kop van de pop-up */
+
+.modal-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 28px;
+    padding-bottom: 19px;
+    border-bottom: 1px solid #edf0f5;
+}
+
+.modal-heading h2 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.modal-heading .eyebrow {
+    margin-bottom: 6px;
+}
+
+/* Sluitknop */
+
+.icon-button {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 11px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 1.6rem;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.icon-button:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+    transform: rotate(90deg);
+}
+
+/* Invoervelden */
+
+dialog label {
+    display: block;
+    margin-bottom: 19px;
+    color: #334155;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+dialog input,
+dialog select {
+    width: 100%;
+    min-height: 44px;
+    margin-top: 8px;
+    padding: 11px 13px;
+    border: 1px solid #dbe2ed;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #1e293b;
+    font: 400 0.94rem 'DM Sans', sans-serif;
+    transition: 0.2s ease;
+}
+
+dialog input:hover,
+dialog select:hover {
+    border-color: #a5b4fc;
+}
+
+dialog input:focus,
+dialog select:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.10);
+}
+
+/* Uitlegtekst */
+
+dialog .muted {
+    margin: -7px 0 20px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: #64748b;
+}
+
+/* Formulierindeling */
+
+dialog .form-grid {
+    gap: 14px;
+}
+
+dialog .form-error {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+/* Knoppen onderaan */
+
+dialog .modal-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 26px;
+    padding-top: 19px;
+    border-top: 1px solid #edf0f5;
+}
+
+dialog .modal-actions .button {
+    min-height: 42px;
+    padding: 11px 17px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+}
+
+dialog .modal-actions .button:not(.secondary) {
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.18);
+}
+
+dialog .modal-actions .button.secondary {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+}
+
+dialog .modal-actions .button.secondary:hover {
+    background: #e2e8f0;
+}
+
+/* Verwijderknop */
+
+#deleteLeave {
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+#deleteLeave:hover {
+    background: #fee2e2;
+}
+
+/* Meldingenvenster */
+
+#notificationDialog {
+    width: min(520px, calc(100% - 32px));
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+#notificationList {
+    margin-top: 0;
+}
+
+.notification-item {
+    padding: 17px;
+    margin-bottom: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 13px;
+    background: #ffffff;
+    transition: 0.2s ease;
+}
+
+.notification-item:hover {
+    border-color: #c7d2fe;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.notification-item.unread {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+}
+
+.notification-item h3 {
+    margin: 0 0 7px;
+    color: #1e293b;
+    font-size: 0.95rem;
+}
+
+.notification-item p {
+    margin: 0;
+    color: #475569;
+    font-size: 0.87rem;
+    line-height: 1.6;
+}
+
+.notification-item small {
+    display: block;
+    margin-top: 10px;
+    color: #94a3b8;
+    font-size: 0.76rem;
+}
+
+/* Mobiele weergave */
+
+@media (max-width: 600px) {
+    dialog {
+        width: calc(100% - 24px);
+        max-height: 88vh;
+        padding: 21px;
+        border-radius: 16px;
+    }
+
+    .modal-heading {
+        margin-bottom: 22px;
+        padding-bottom: 16px;
+    }
+
+    .modal-heading h2 {
+        font-size: 1.2rem;
+    }
+
+    dialog .modal-actions {
+        gap: 8px;
+    }
+
+    dialog .modal-actions .button {
+        flex: 1;
+        padding: 10px 12px;
+        font-size: 0.82rem;
+    }
+
+    dialog .modal-actions .spacer {
+        display: none;
+    }
+
+    #deleteLeave {
+        flex: 0 0 100%;
+    }
+}
+
+/* =========================================
+   Verbeterde bevestigingspop-up
+========================================= */
+
+.confirm-dialog {
+    width: min(430px, calc(100% - 32px));
+    max-height: 90vh;
+    padding: 28px;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #ffffff;
+    color: var(--ink);
+    box-shadow: 0 25px 80px rgba(15, 23, 42, 0.25);
+    animation: confirmModalAppear 0.2s ease-out;
+}
+
+.confirm-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(4px);
+}
+
+@keyframes confirmModalAppear {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Titel */
+
+.confirm-dialog .modal-heading {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #edf0f5;
+}
+
+.confirm-dialog .modal-heading h2 {
+    margin: 0;
+    color: #1e293b;
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+/* Bericht */
+
+.confirm-message {
+    margin: 0 0 22px;
+    color: #64748b;
+    font-size: 0.94rem;
+    line-height: 1.6;
+}
+
+/* Knoppen */
+
+.confirm-dialog .modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 0;
+    padding-top: 18px;
+    border-top: 1px solid #edf0f5;
+}
+
+.confirm-dialog .modal-actions .button {
+    min-height: 42px;
+    padding: 11px 16px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+}
+
+/* Annuleren */
+
+.confirm-dialog .button.secondary {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #e2e8f0;
+}
+
+.confirm-dialog .button.secondary:hover {
+    background: #e2e8f0;
+}
+
+/* Aanvraag verwijderen */
+
+.confirm-delete-button {
+    background: #dc2626;
+    color: #ffffff;
+    border: 0;
+    box-shadow: 0 4px 10px rgba(220, 38, 38, 0.16);
+}
+
+.confirm-delete-button:hover {
+    background: #b91c1c;
+}
+
+/* Mobiele weergave */
+
+@media (max-width: 600px) {
+
+    .confirm-dialog {
+        width: calc(100% - 28px);
+        padding: 22px;
+        border-radius: 16px;
+    }
+
+    .confirm-dialog .modal-actions {
+        flex-wrap: wrap;
+    }
+
+    .confirm-dialog .modal-actions .spacer {
+        display: none;
+    }
+
+    .confirm-dialog .modal-actions .button {
+        flex: 1;
+        padding: 10px 12px;
+        font-size: 0.82rem;
+    }
+
+}
 }

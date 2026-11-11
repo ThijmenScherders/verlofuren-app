@@ -1,5 +1,4 @@
 
-
 document.addEventListener('DOMContentLoaded', () => {
 
     const calendarEl = document.getElementById('calendar');
@@ -13,17 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const calculationWrap = document.getElementById('calculationWrap');
     const errorEl = document.getElementById('formError');
     const deleteButton = document.getElementById('deleteLeave');
-
     const entryType = document.getElementById('entryType');
-
     const leaveFields = document.getElementById('leaveFields');
     const creditFields = document.getElementById('creditFields');
-
     const startDateInput = document.getElementById('startDate');
     const endDateInput = document.getElementById('endDate');
     const startTimeInput = document.getElementById('startTime');
     const endTimeInput = document.getElementById('endTime');
-
     const creditDateInput = document.getElementById('creditDate');
     const creditMinutesInput = document.getElementById('creditMinutes');
 
@@ -32,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const payoutForm = document.getElementById('payoutForm');
     const payoutHistory = document.getElementById('payoutHistory');
     const payoutError = document.getElementById('payoutError');
-
     const payoutDateInput = document.getElementById('payoutDate');
     const payoutHoursInput = document.getElementById('payoutHours');
     const payoutNoteInput = document.getElementById('payoutNote');
@@ -59,6 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let calendar;
 
     let currentBalanceYear = new Date().getFullYear();
+
+    // Houdt bij of we een aanvraag aan het aanpassen zijn.
+    let editingRequestId = null;
 
     const localDate = (date) => {
 
@@ -93,11 +90,100 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /*
     |--------------------------------------------------------------------------
+    | Eigen bevestigingsvenster
+    |--------------------------------------------------------------------------
+    */
+
+    function showConfirmDialog(message) {
+
+        return new Promise((resolve) => {
+
+            const confirmDialog = document.createElement('dialog');
+
+            confirmDialog.className = 'confirm-dialog';
+
+            const heading = document.createElement('div');
+            heading.className = 'modal-heading';
+
+            const title = document.createElement('h2');
+            title.textContent = 'Weet je het zeker?';
+
+            heading.appendChild(title);
+
+            const text = document.createElement('p');
+            text.className = 'confirm-message';
+            text.textContent = message;
+
+            const actions = document.createElement('div');
+            actions.className = 'modal-actions';
+
+            const spacer = document.createElement('span');
+            spacer.className = 'spacer';
+
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'button secondary';
+            cancelButton.textContent = 'Annuleren';
+
+            const confirmButton = document.createElement('button');
+            confirmButton.type = 'button';
+            confirmButton.className = 'button confirm-delete-button';
+            confirmButton.textContent = 'Aanvraag verwijderen';
+
+            actions.append(
+                spacer,
+                cancelButton,
+                confirmButton
+            );
+
+            confirmDialog.append(
+                heading,
+                text,
+                actions
+            );
+
+            document.body.appendChild(confirmDialog);
+
+            let finished = false;
+
+            const finish = (result) => {
+
+                if (finished) return;
+
+                finished = true;
+
+                confirmDialog.close();
+                confirmDialog.remove();
+
+                resolve(result);
+
+            };
+
+            cancelButton.addEventListener('click', () => {
+                finish(false);
+            });
+
+            confirmButton.addEventListener('click', () => {
+                finish(true);
+            });
+
+            confirmDialog.addEventListener('cancel', (event) => {
+                event.preventDefault();
+                finish(false);
+            });
+
+            confirmDialog.showModal();
+
+        });
+
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Meldingen
     |--------------------------------------------------------------------------
     */
 
-    // Het rode puntje bij de meldingenknop aanpassen.
     function updateNotificationBadge(unreadCount) {
 
         if (!notificationBadge) return;
@@ -109,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Datum van een melding netjes weergeven.
     function formatNotificationDate(dateValue) {
 
         if (!dateValue) return '';
@@ -132,7 +217,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Meldingen in het venster tonen.
     function renderNotifications(notifications) {
 
         if (!notificationList) return;
@@ -188,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Meldingen ophalen uit de database.
     async function loadNotifications() {
 
         if (!notificationButton || !notificationBadge) return;
@@ -211,7 +294,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Alle ongelezen meldingen als gelezen markeren.
     async function markNotificationsRead() {
 
         try {
@@ -236,7 +318,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             updateNotificationBadge(0);
 
-            // De meldingen opnieuw ophalen zodat de weergave klopt.
             await loadNotifications();
 
         } catch (err) {
@@ -247,7 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Meldingenvenster openen.
     async function openNotificationDialog() {
 
         if (!notificationDialog) return;
@@ -264,7 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Klik op de meldingenknop.
     if (notificationButton && notificationDialog) {
 
         notificationButton.addEventListener(
@@ -274,7 +353,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Meldingenvenster sluiten.
     if (closeNotificationDialog && notificationDialog) {
 
         closeNotificationDialog.addEventListener(
@@ -284,7 +362,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Bij het openen van de app controleren op nieuwe meldingen.
     loadNotifications();
 
     /*
@@ -379,7 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
     |--------------------------------------------------------------------------
     */
 
-    // Uitbetalingsgeschiedenis ophalen.
     async function loadPayoutHistory(year = currentBalanceYear) {
 
         if (!payoutHistory) return;
@@ -400,7 +476,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await request(url);
 
-            // Ondersteunt zowel een array als een object met payouts.
             const payouts = Array.isArray(data)
                 ? data
                 : (data.payouts || data.entries || []);
@@ -520,7 +595,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Uitbetaling verwijderen.
     async function deletePayout(id) {
 
         if (!confirm('Weet je zeker dat je deze uitbetaling wilt verwijderen?')) {
@@ -561,7 +635,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Nieuwe uitbetaling openen.
     function openPayoutDialog() {
 
         if (!payoutDialog || !payoutForm) return;
@@ -580,7 +653,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Uitbetaling opslaan.
     if (payoutForm) {
 
         payoutForm.addEventListener('submit', async (event) => {
@@ -672,7 +744,6 @@ document.addEventListener('DOMContentLoaded', () => {
     |--------------------------------------------------------------------------
     */
 
-    // Weergave aanpassen aan het soort boeking.
     const setEntryTypeUI = () => {
 
         const type = entryType.value;
@@ -713,12 +784,12 @@ document.addEventListener('DOMContentLoaded', () => {
         );
 
         const titles = {
-            leave: 'Verlof inplannen',
+            leave: 'Verlof aanvragen',
             sick: 'Ziekte registreren',
             time_credit: 'Tijd-voor-tijd toevoegen',
-            doctor: 'Doktersafspraak registreren',
-            dentist: 'Tandartsafspraak registreren',
-            specialist: 'Specialistafspraak registreren'
+            doctor: 'Doktersafspraak aanvragen',
+            dentist: 'Tandartsafspraak aanvragen',
+            specialist: 'Specialistafspraak aanvragen'
         };
 
         document.getElementById('dialogTitle').textContent =
@@ -726,7 +797,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     };
 
-    // Handmatige berekening tonen of verbergen.
     const setModeUI = () => {
 
         const isNonLeave = [
@@ -748,6 +818,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Nieuwe boeking openen.
     function openNew(start, end) {
+
+        editingRequestId = null;
 
         form.reset();
 
@@ -780,22 +852,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
         errorEl.textContent = '';
 
+        deleteButton.textContent = 'Boeking verwijderen';
         deleteButton.classList.add('hidden');
 
         dialog.showModal();
 
     }
 
-    // Bestaande boeking aanpassen.
+    // Bestaande boeking of aanvraag aanpassen.
     function openEdit(event) {
 
         const p = event.extendedProps || {};
 
         if (p.holiday) return;
 
+        const isPendingRequest =
+            p.pending_request || p.request_status === 'pending';
+
+        if (isPendingRequest) {
+
+            if (window.APP_CONFIG.isAdmin) {
+                return;
+            }
+
+            editingRequestId = p.request_id;
+
+        } else {
+
+            editingRequestId = null;
+
+        }
+
         form.reset();
 
-        document.getElementById('leaveId').value = event.id;
+        document.getElementById('leaveId').value =
+            isPendingRequest ? '' : event.id;
 
         if (p.entry_type === 'time_credit') {
 
@@ -851,18 +942,29 @@ document.addEventListener('DOMContentLoaded', () => {
         errorEl.textContent = '';
 
         const titles = {
-            leave: 'Verlof aanpassen',
+            leave: isPendingRequest ? 'Verlofaanvraag' : 'Verlof aanpassen',
             sick: 'Ziekte aanpassen',
             time_credit: 'Tijd-voor-tijd aanpassen',
-            doctor: 'Doktersafspraak aanpassen',
-            dentist: 'Tandartsafspraak aanpassen',
-            specialist: 'Specialistafspraak aanpassen'
+            doctor: 'Doktersafspraak',
+            dentist: 'Tandartsafspraak',
+            specialist: 'Specialistafspraak'
         };
 
         document.getElementById('dialogTitle').textContent =
             titles[p.entry_type] || 'Boeking aanpassen';
 
-        deleteButton.classList.remove('hidden');
+        // Een aanvraag in afwachting krijgt een eigen verwijderknop.
+        if (isPendingRequest) {
+
+            deleteButton.textContent = 'Aanvraag verwijderen';
+            deleteButton.classList.remove('hidden');
+
+        } else {
+
+            deleteButton.textContent = 'Boeking verwijderen';
+            deleteButton.classList.remove('hidden');
+
+        }
 
         dialog.showModal();
 
@@ -949,10 +1051,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         },
 
+        // Aanvragen en boekingen aanklikken.
         eventClick: (info) => {
 
-            if (info.event.extendedProps.holiday) return;
+            const p = info.event.extendedProps || {};
 
+            if (p.holiday) return;
+
+            if (
+                (p.pending_request || p.request_status === 'pending') &&
+                window.APP_CONFIG.isAdmin
+            ) {
+
+                alert('Deze aanvraag wacht nog op goedkeuring.');
+
+                return;
+
+            }
+
+            // Medewerker kan de eigen aanvraag openen.
             openEdit(info.event);
 
         },
@@ -964,7 +1081,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const type = info.event.extendedProps.entry_type;
+            const p = info.event.extendedProps || {};
+
+            const type = p.entry_type;
+
+            if (p.pending_request) {
+
+                info.el.classList.add('pending-request-event');
+
+                info.el.title =
+                    'Deze aanvraag wacht op goedkeuring. Klik om te bekijken en eventueel te verwijderen.';
+
+            }
 
             if (type === 'time_credit') {
                 info.el.classList.add('time-credit-event');
@@ -1058,7 +1186,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // Bij een andere medewerker de geschiedenis opnieuw laden.
     if (payoutEmployeeInput) {
 
         payoutEmployeeInput.addEventListener('change', () => {
@@ -1149,7 +1276,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 ...commonPayload,
 
-                action: 'save',
+                action: editingRequestId
+                    ? 'update_request'
+                    : 'save',
 
                 id: Number(
                     document.getElementById('leaveId').value || 0
@@ -1173,11 +1302,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             };
 
+            if (editingRequestId) {
+                payload.request_id = editingRequestId;
+            }
+
         }
 
         try {
 
-            await request('api.php', {
+            const data = await request('api.php', {
 
                 method: 'POST',
 
@@ -1191,7 +1324,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             dialog.close();
 
-            window.location.reload();
+            editingRequestId = null;
+
+            if (data.pending) {
+
+                calendar.refetchEvents();
+
+                await loadNotifications();
+
+                await updateBalance(currentBalanceYear);
+
+                return;
+
+            }
+
+            calendar.refetchEvents();
+
+            await updateBalance(currentBalanceYear);
+
+            await loadNotifications();
 
         } catch (err) {
 
@@ -1203,14 +1354,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /*
     |--------------------------------------------------------------------------
-    | Boeking verwijderen
+    | Boeking of aanvraag verwijderen
     |--------------------------------------------------------------------------
     */
 
     deleteButton.addEventListener('click', async () => {
 
-        if (!confirm('Weet je zeker dat je deze boeking wilt verwijderen?')) {
-            return;
+        const isPendingRequest = Boolean(editingRequestId);
+
+        // Voor een aanvraag gebruiken we onze eigen pop-up.
+        if (isPendingRequest) {
+
+            const confirmed = await showConfirmDialog(
+                'Weet je zeker dat je deze aanvraag wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.'
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+        } else {
+
+            // Gewone boekingen behouden hun bestaande bevestiging.
+            if (!confirm('Weet je zeker dat je deze boeking wilt verwijderen?')) {
+                return;
+            }
+
         }
 
         const id = document.getElementById('leaveId').value;
@@ -1219,29 +1388,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
 
-            await request('api.php', {
+            // Een aanvraag in afwachting verwijderen.
+            if (isPendingRequest) {
 
-                method: 'POST',
+                await request('api.php', {
 
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                    method: 'POST',
 
-                body: JSON.stringify({
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
 
-                    action: isCredit ? 'delete_credit' : 'delete',
+                    body: JSON.stringify({
 
-                    id: id,
+                        action: 'delete_request',
 
-                    csrf: window.APP_CONFIG.csrf
+                        request_id: editingRequestId,
 
-                })
+                        csrf: window.APP_CONFIG.csrf
 
-            });
+                    })
+
+                });
+
+            } else {
+
+                // Een gewone boeking of tijd-voor-tijd verwijderen.
+                await request('api.php', {
+
+                    method: 'POST',
+
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+
+                    body: JSON.stringify({
+
+                        action: isCredit ? 'delete_credit' : 'delete',
+
+                        id: id,
+
+                        csrf: window.APP_CONFIG.csrf
+
+                    })
+
+                });
+
+            }
 
             dialog.close();
 
-            window.location.reload();
+            editingRequestId = null;
+
+            calendar.refetchEvents();
+
+            await updateBalance(currentBalanceYear);
+
+            await loadNotifications();
 
         } catch (err) {
 
