@@ -252,7 +252,7 @@ $roleLabel = $user['role'] === 'admin'
 
         <?php if ($user['role'] === 'admin'): ?>
             <a href="medewerkers.php">Medewerkers</a>
-            <a href="admin.php">Admin</a>
+            <a href="admin.php">Aanvragen</a>
         <?php endif; ?>
 
         <a href="export.php">Export CSV</a>
@@ -795,7 +795,5 @@ window.APP_CONFIG = {
 </script>
 
 <script src="assets/app.js"></script>
-
 </body>
 </html>
-
