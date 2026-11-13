@@ -61,7 +61,7 @@ Voor een echte openbare server: gebruik HTTPS, stel een sterk databasewachtwoord
  8* Verlof aanvraag doen bij manager van de afdelingen  manager moet akkord geven
 
 
-Must= have = 1 (Done) + 2 (Done) + 3 + 5
-Could have = 4 (Done) + 6 (Done) + 7(Done maar testen moet later nog wel gedan worden om te kijken of die helemaal werkt) + 8
+Must= have = 1 (Done) + 2 (Done) + 3 (Done) + 5 ()
+Could have = 4 (Done) + 6 (Done) + 7(Done maar testen moet later nog wel gedan worden om te kijken of die helemaal werkt) + 8 (Done)
 
 Can have =  
