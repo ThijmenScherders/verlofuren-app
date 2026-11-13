@@ -29,19 +29,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- Alleen uitvoeren als work_number nog niet bestaat.
-ALTER TABLE users
-    ADD COLUMN work_number VARCHAR(50) NULL;
-
-ALTER TABLE users
-    MODIFY allowance_hours DECIMAL(8,2) NOT NULL DEFAULT 193.75,
-    MODIFY monday_hours DECIMAL(5,2) NOT NULL DEFAULT 7.75,
-    MODIFY tuesday_hours DECIMAL(5,2) NOT NULL DEFAULT 7.75,
-    MODIFY wednesday_hours DECIMAL(5,2) NOT NULL DEFAULT 7.75,
-    MODIFY thursday_hours DECIMAL(5,2) NOT NULL DEFAULT 7.75,
-    MODIFY friday_hours DECIMAL(5,2) NOT NULL DEFAULT 7.75;
-
-
 -- ============================================================
 -- DEFINITIEVE KALENDERBOEKINGEN
 -- ============================================================
@@ -64,13 +51,6 @@ CREATE TABLE IF NOT EXISTS leave_entries (
     INDEX idx_leave_dates (start_date, end_date),
     INDEX idx_leave_user (user_id)
 ) ENGINE=InnoDB;
-
--- Alleen uitvoeren als deze kolommen nog niet bestaan.
-ALTER TABLE leave_entries
-    ADD COLUMN start_time TIME NULL,
-    ADD COLUMN end_time TIME NULL,
-    ADD COLUMN booking_type VARCHAR(30) NOT NULL DEFAULT 'leave';
-
 
 -- ============================================================
 -- AANVRAGEN
@@ -103,7 +83,6 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     INDEX idx_leave_requests_created (created_at)
 ) ENGINE=InnoDB;
 
-
 -- ============================================================
 -- TIJD-VOOR-TIJD
 -- ============================================================
@@ -120,7 +99,6 @@ CREATE TABLE IF NOT EXISTS time_credits (
     INDEX idx_time_credits_user_date (user_id, work_date)
 ) ENGINE=InnoDB;
 
-
 -- ============================================================
 -- UITBETALINGEN
 -- ============================================================
@@ -136,7 +114,6 @@ CREATE TABLE IF NOT EXISTS leave_payouts (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_leave_payouts_user_date (user_id, payout_date)
 ) ENGINE=InnoDB;
-
 
 -- ============================================================
 -- MELDINGEN
