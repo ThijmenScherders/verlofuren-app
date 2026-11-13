@@ -1,8 +1,13 @@
+
 CREATE DATABASE IF NOT EXISTS verlofuren
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
 USE verlofuren;
+
+-- ============================================================
+-- GEBRUIKERS
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -24,12 +29,10 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
-
+-- Alleen uitvoeren als work_number nog niet bestaat.
 ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS work_number VARCHAR(50) NULL;
+    ADD COLUMN work_number VARCHAR(50) NULL;
 
--- Nieuwe standaardwaarden voor nieuwe medewerkers.
--- Bestaande persoonlijke waarden worden hiermee niet overschreven.
 ALTER TABLE users
     MODIFY allowance_hours DECIMAL(8,2) NOT NULL DEFAULT 193.75,
     MODIFY monday_hours DECIMAL(5,2) NOT NULL DEFAULT 7.75,
@@ -38,6 +41,10 @@ ALTER TABLE users
     MODIFY thursday_hours DECIMAL(5,2) NOT NULL DEFAULT 7.75,
     MODIFY friday_hours DECIMAL(5,2) NOT NULL DEFAULT 7.75;
 
+
+-- ============================================================
+-- DEFINITIEVE KALENDERBOEKINGEN
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS leave_entries (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -58,12 +65,16 @@ CREATE TABLE IF NOT EXISTS leave_entries (
     INDEX idx_leave_user (user_id)
 ) ENGINE=InnoDB;
 
--- Nieuwe velden voor bestaande kalenderboekingen.
+-- Alleen uitvoeren als deze kolommen nog niet bestaan.
 ALTER TABLE leave_entries
-    ADD COLUMN IF NOT EXISTS start_time TIME NULL,
-    ADD COLUMN IF NOT EXISTS end_time TIME NULL,
-    ADD COLUMN IF NOT EXISTS booking_type VARCHAR(30) NOT NULL DEFAULT 'leave';
+    ADD COLUMN start_time TIME NULL,
+    ADD COLUMN end_time TIME NULL,
+    ADD COLUMN booking_type VARCHAR(30) NOT NULL DEFAULT 'leave';
 
+
+-- ============================================================
+-- AANVRAGEN
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS leave_requests (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -92,6 +103,11 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     INDEX idx_leave_requests_created (created_at)
 ) ENGINE=InnoDB;
 
+
+-- ============================================================
+-- TIJD-VOOR-TIJD
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS time_credits (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NOT NULL,
@@ -103,6 +119,11 @@ CREATE TABLE IF NOT EXISTS time_credits (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_time_credits_user_date (user_id, work_date)
 ) ENGINE=InnoDB;
+
+
+-- ============================================================
+-- UITBETALINGEN
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS leave_payouts (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -116,6 +137,10 @@ CREATE TABLE IF NOT EXISTS leave_payouts (
     INDEX idx_leave_payouts_user_date (user_id, payout_date)
 ) ENGINE=InnoDB;
 
+
+-- ============================================================
+-- MELDINGEN
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS notifications (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
