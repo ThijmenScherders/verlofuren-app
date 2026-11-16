@@ -255,9 +255,8 @@ $roleLabel = $user['role'] === 'admin'
             <a href="admin.php">Aanvragen</a>
         <?php endif; ?>
 
-        <a href="export.php">Export CSV</a>
-        <a href="logout.php">Uitloggen</a>
-
+           <a href="export.php" class="button secondary">Export CSV</a>
+       <a href="logout.php" class="button secondary">Uitloggen</a>
     </nav>
 </header>
 
