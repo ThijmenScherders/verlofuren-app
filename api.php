@@ -41,7 +41,6 @@ function working_minutes(string $startTime, string $endTime): int
 
 }
 
-
 function hours_for_range(
 
     array $employee,
@@ -55,7 +54,6 @@ function hours_for_range(
     string $endTime
 
 ): float {
-
 
 
     $hoursByDay = [
@@ -76,13 +74,9 @@ function hours_for_range(
 
     ];
 
-
-
     $from = new DateTimeImmutable($start);
 
     $to = new DateTimeImmutable($end);
-
-
 
     if ($to < $from) {
 
@@ -93,8 +87,6 @@ function hours_for_range(
         );
 
     }
-
-
 
     $holidays = dutch_holidays(
 
@@ -122,8 +114,6 @@ function hours_for_range(
 
         }
 
-
-
         $scheduledHours = $hoursByDay[$weekday];
 
 
@@ -133,8 +123,6 @@ function hours_for_range(
             continue;
 
         }
-
-
 
         if ($start === $end) {
 
@@ -146,8 +134,6 @@ function hours_for_range(
 
         }
 
-
-
         if ($date === $start) {
 
             $minutes = working_minutes($startTime, '16:30');
@@ -157,8 +143,6 @@ function hours_for_range(
             continue;
 
         }
-
-
 
         if ($date === $end) {
 
@@ -170,13 +154,9 @@ function hours_for_range(
 
         }
 
-
-
         $total += $scheduledHours;
 
     }
-
-
 
     return round($total, 2);
 
@@ -193,9 +173,6 @@ function valid_date(string $date): bool
     }
 
     $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-
-
-
     return $parsed !== false && $parsed->format('Y-m-d') === $date;
 
 }
@@ -229,7 +206,6 @@ function check_entry_access(array $user, array $entry): void
     }
 
 }
-
 /*
 
 |--------------------------------------------------------------------------
@@ -241,7 +217,6 @@ function check_entry_access(array $user, array $entry): void
 */
 
 function mandatory_bridge_days(int $year, int $endYear): array
-
 {
 
     $days = [];
@@ -253,23 +228,14 @@ function mandatory_bridge_days(int $year, int $endYear): array
 
 
         $easter = new DateTimeImmutable('@' . easter_date($y));
-
-
-
         $easter = $easter->setTimezone(
 
             new DateTimeZone('Europe/Amsterdam')
 
         );
 
-
-
         $ascension = $easter->modify('+39 days');
-
         $bridgeDay = $ascension->modify('+1 day');
-
-
-
         $days[$bridgeDay->format('Y-m-d')] =
 
             'Verplichte vrije dag na Hemelvaartsdag';
@@ -277,7 +243,6 @@ function mandatory_bridge_days(int $year, int $endYear): array
     }
 
     return $days;
-
 }
 
 /*
@@ -289,30 +254,20 @@ function mandatory_bridge_days(int $year, int $endYear): array
 |--------------------------------------------------------------------------
 
 */
-
 function dutch_holidays(int $year, int $endYear): array
 
 {
 
     $all = [];
 
-
-
     for ($y = $year; $y <= $endYear; $y++) {
 
-
-
         $easter = new DateTimeImmutable('@' . easter_date($y));
-
-
-
         $easter = $easter->setTimezone(
 
             new DateTimeZone('Europe/Amsterdam')
 
         );
-
-
 
         $add = function (
 
@@ -326,39 +281,22 @@ function dutch_holidays(int $year, int $endYear): array
 
         };
 
-
-
         $add(new DateTimeImmutable("$y-01-01"), 'Nieuwjaarsdag');
-
         $add(new DateTimeImmutable("$y-04-27"), 'Koningsdag');
-
         $add($easter->modify('-2 days'), 'Goede Vrijdag');
-
         $add($easter, 'Eerste paasdag');
-
         $add($easter->modify('+1 day'), 'Tweede paasdag');
-
         $add($easter->modify('+39 days'), 'Hemelvaartsdag');
-
         $add($easter->modify('+49 days'), 'Eerste pinksterdag');
-
         $add($easter->modify('+50 days'), 'Tweede pinksterdag');
-
-
-
         $add(new DateTimeImmutable("$y-12-25"), 'Eerste kerstdag');
-
         $add(new DateTimeImmutable("$y-12-26"), 'Tweede kerstdag');
-
-
 
         if ($y % 5 === 0) {
 
             $add(new DateTimeImmutable("$y-05-05"), 'Bevrijdingsdag');
 
         }
-
-
 
         if (
 
@@ -367,8 +305,6 @@ function dutch_holidays(int $year, int $endYear): array
         ) {
 
             unset($all["$y-04-27"]);
-
-
 
             $add(
 
@@ -382,13 +318,9 @@ function dutch_holidays(int $year, int $endYear): array
 
     }
 
-
-
     return $all;
 
 }
-
-
 
 /*
 
@@ -399,9 +331,6 @@ function dutch_holidays(int $year, int $endYear): array
 |--------------------------------------------------------------------------
 
 */
-
-
-
 function calculate_employee_balance(
 
     int $userId,
@@ -412,32 +341,17 @@ function calculate_employee_balance(
 
 ): array {
 
-
-
     $yearStart = $year . '-01-01';
-
     $nextYearStart = ($year + 1) . '-01-01';
-
     $marchEnd = $year . '-04-01';
-
-
-
     $annualAllowance = (float)$employee['allowance_hours'];
-
-
-
     $hoursPerDay = (float)$employee['leave_day_hours'];
-
-
 
     if ($hoursPerDay <= 0) {
 
         $hoursPerDay = 7.75;
 
     }
-
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -447,8 +361,6 @@ function calculate_employee_balance(
     |--------------------------------------------------------------------------
 
     */
-
-
 
     $balanceStmt = db()->prepare(
 
@@ -466,8 +378,6 @@ function calculate_employee_balance(
 
     );
 
-
-
     $balanceStmt->execute([
 
         $userId,
@@ -480,11 +390,7 @@ function calculate_employee_balance(
 
     ]);
 
-
-
     $used = (float)$balanceStmt->fetchColumn();
-
-
 
     /*
 
@@ -496,14 +402,8 @@ function calculate_employee_balance(
 
     */
 
-
-
     $bridgeDays = mandatory_bridge_days($year, $year);
-
     $bridgeDate = array_key_first($bridgeDays);
-
-
-
     $bridgeCheck = db()->prepare(
 
         'SELECT COUNT(*)
@@ -520,8 +420,6 @@ function calculate_employee_balance(
 
     );
 
-
-
     $bridgeCheck->execute([
 
         $userId,
@@ -534,20 +432,13 @@ function calculate_employee_balance(
 
     ]);
 
-
-
     $bridgeAlreadyBooked = (int)$bridgeCheck->fetchColumn() > 0;
-
-
 
     if (!$bridgeAlreadyBooked) {
 
         $used += $hoursPerDay;
 
     }
-
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -557,9 +448,6 @@ function calculate_employee_balance(
     |--------------------------------------------------------------------------
 
     */
-
-
-
     $creditStmt = db()->prepare(
 
         'SELECT COALESCE(SUM(minutes), 0)
@@ -573,9 +461,6 @@ function calculate_employee_balance(
            AND work_date < ?'
 
     );
-
-
-
     $creditStmt->execute([
 
         $userId,
@@ -586,12 +471,7 @@ function calculate_employee_balance(
 
     ]);
 
-
-
     $creditHours = (int)$creditStmt->fetchColumn() / 60;
-
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -601,9 +481,6 @@ function calculate_employee_balance(
     |--------------------------------------------------------------------------
 
     */
-
-
-
     $payoutStmt = db()->prepare(
 
         'SELECT COALESCE(SUM(hours), 0)
@@ -617,9 +494,6 @@ function calculate_employee_balance(
            AND payout_date < ?'
 
     );
-
-
-
     $payoutStmt->execute([
 
         $userId,
@@ -629,13 +503,7 @@ function calculate_employee_balance(
         $nextYearStart
 
     ]);
-
-
-
     $payoutHours = (float)$payoutStmt->fetchColumn();
-
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -645,9 +513,6 @@ function calculate_employee_balance(
     |--------------------------------------------------------------------------
 
     */
-
-
-
     $earlyLeaveStmt = db()->prepare(
 
         'SELECT COALESCE(SUM(hours), 0)
@@ -663,9 +528,6 @@ function calculate_employee_balance(
            AND start_date < ?'
 
     );
-
-
-
     $earlyLeaveStmt->execute([
 
         $userId,
@@ -677,13 +539,7 @@ function calculate_employee_balance(
         $marchEnd
 
     ]);
-
-
-
     $earlyLeaveHours = (float)$earlyLeaveStmt->fetchColumn();
-
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -693,9 +549,6 @@ function calculate_employee_balance(
     |--------------------------------------------------------------------------
 
     */
-
-
-
     $earlyPayoutStmt = db()->prepare(
 
         'SELECT COALESCE(SUM(hours), 0)
@@ -710,8 +563,6 @@ function calculate_employee_balance(
 
     );
 
-
-
     $earlyPayoutStmt->execute([
 
         $userId,
@@ -722,15 +573,9 @@ function calculate_employee_balance(
 
     ]);
 
-
-
     $earlyPayoutHours = (float)$earlyPayoutStmt->fetchColumn();
 
-
-
     $earlyUsage = $earlyLeaveHours + $earlyPayoutHours;
-
-
 
     /*
 
@@ -741,18 +586,10 @@ function calculate_employee_balance(
     |--------------------------------------------------------------------------
 
     */
-
-
-
     $carryoverHours = 0.0;
-
     $excessHours = 0.0;
 
-
-
     if ($year >= 2027) {
-
-
 
         $previousYearBalance = calculate_employee_balance(
 
@@ -764,8 +601,6 @@ function calculate_employee_balance(
 
         );
 
-
-
         $previousRemaining = max(
 
             0,
@@ -774,11 +609,7 @@ function calculate_employee_balance(
 
         );
 
-
-
         $maximumCarryover = $hoursPerDay * 5;
-
-
 
         $carryoverHours = min(
 
@@ -787,8 +618,6 @@ function calculate_employee_balance(
             $maximumCarryover
 
         );
-
-
 
         $excessHours = max(
 
@@ -800,8 +629,6 @@ function calculate_employee_balance(
 
     }
 
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -812,12 +639,7 @@ function calculate_employee_balance(
 
     */
 
-
-
     $excessUsed = min($earlyUsage, $excessHours);
-
-
-
     $excessRemaining = max(
 
         0,
@@ -825,8 +647,6 @@ function calculate_employee_balance(
         $excessHours - $excessUsed
 
     );
-
-
 
     /*
 
@@ -838,19 +658,13 @@ function calculate_employee_balance(
 
     */
 
-
-
     $today = date('Y-m-d');
-
-
 
     if ($year < (int)date('Y') || $today >= $year . '-04-01') {
 
         $excessRemaining = 0.0;
 
     }
-
-
 
     /*
 
@@ -862,14 +676,11 @@ function calculate_employee_balance(
 
     */
 
-
-
     $totalAvailable = $annualAllowance
 
         + $creditHours
 
         + $carryoverHours;
-
 
 
     $remaining = $totalAvailable
@@ -880,37 +691,23 @@ function calculate_employee_balance(
 
         + $excessUsed;
 
-
-
     return [
 
         'annual_allowance' => round($annualAllowance, 2),
-
         'credit_hours' => round($creditHours, 2),
-
         'carryover_hours' => round($carryoverHours, 2),
-
         'excess_hours' => round($excessHours, 2),
-
         'excess_used' => round($excessUsed, 2),
-
         'excess_remaining' => round($excessRemaining, 2),
-
         'used' => round($used, 2),
-
         'payout_hours' => round($payoutHours, 2),
-
         'total_available' => round($totalAvailable, 2),
-
         'remaining' => round($remaining, 2),
-
         'hours_per_day' => round($hoursPerDay, 2)
 
     ];
 
 }
-
-
 
 /*
 
@@ -921,9 +718,6 @@ function calculate_employee_balance(
 |--------------------------------------------------------------------------
 
 */
-
-
-
 function create_carryover_notification(
 
     int $userId,
@@ -932,25 +726,11 @@ function create_carryover_notification(
 
 ): void {
 
-
-
     $currentDate = date('Y-m-d');
-
-
-
     $date = new DateTimeImmutable($currentDate);
-
-
-
     $year = (int)$date->format('Y');
-
     $month = (int)$date->format('n');
-
-
-
     if ($year < 2027 || !in_array($month, [1, 2, 3], true)) {
-
-
 
         $stmt = db()->prepare(
 
@@ -962,8 +742,6 @@ function create_carryover_notification(
 
         );
 
-
-
         $stmt->execute([
 
             $userId,
@@ -972,22 +750,12 @@ function create_carryover_notification(
 
         ]);
 
-
-
         return;
 
     }
 
-
-
     $previousYear = $year - 1;
-
-
-
     $notificationKey = "carryover-{$year}";
-
-
-
     $balance = calculate_employee_balance(
 
         $userId,
@@ -998,15 +766,9 @@ function create_carryover_notification(
 
     );
 
-
-
     $excessRemaining = (float)$balance['excess_remaining'];
 
-
-
     if ($excessRemaining <= 0) {
-
-
 
         $stmt = db()->prepare(
 
@@ -1018,8 +780,6 @@ function create_carryover_notification(
 
         );
 
-
-
         $stmt->execute([
 
             $userId,
@@ -1028,13 +788,9 @@ function create_carryover_notification(
 
         ]);
 
-
-
         return;
 
     }
-
-
 
     $hours = number_format(
 
@@ -1048,35 +804,23 @@ function create_carryover_notification(
 
     );
 
-
-
     $title = match ($month) {
 
         1 => 'Verlofuren uit ' . $previousYear . ' gebruiken',
-
         2 => 'Herinnering: oude verlofuren',
-
         3 => 'Laatste herinnering: oude verlofuren'
 
     };
 
-
-
     $message = match ($month) {
-
-
 
         1 => "Je hebt nog {$hours} uur aan overtollige verlofuren uit {$previousYear} openstaan. "
 
             . "Gebruik deze uren of laat ze uitbetalen vóór 1 april {$year}.",
 
-
-
         2 => "Je hebt nog {$hours} uur aan overtollige verlofuren uit {$previousYear} over. "
 
             . "Vergeet niet deze uren uiterlijk 31 maart {$year} op te nemen of te laten uitbetalen.",
-
-
 
         3 => "Laatste herinnering! Je hebt nog {$hours} uur aan overtollige verlofuren uit {$previousYear} openstaan. "
 
@@ -1085,8 +829,6 @@ function create_carryover_notification(
             . "Vanaf 1 april vervalt het resterende overschot."
 
     };
-
-
 
     $cleanupStmt = db()->prepare(
 
@@ -1100,8 +842,6 @@ function create_carryover_notification(
 
     );
 
-
-
     $cleanupStmt->execute([
 
         $userId,
@@ -1111,8 +851,6 @@ function create_carryover_notification(
         $notificationKey
 
     ]);
-
-
 
     $stmt = db()->prepare(
 
@@ -1130,8 +868,6 @@ function create_carryover_notification(
 
     );
 
-
-
     $stmt->execute([
 
         $userId,
@@ -1148,8 +884,6 @@ function create_carryover_notification(
 
 }
 
-
-
 /*
 
 |--------------------------------------------------------------------------
@@ -1159,9 +893,6 @@ function create_carryover_notification(
 |--------------------------------------------------------------------------
 
 */
-
-
-
 function refresh_carryover_notification(int $userId): void
 
 {
@@ -1172,24 +903,14 @@ function refresh_carryover_notification(int $userId): void
 
     );
 
-
-
     $stmt->execute([$userId]);
-
-
-
     $employee = $stmt->fetch();
-
-
 
     if (!$employee) {
 
         return;
 
     }
-
-
-
     create_carryover_notification(
 
         $userId,
@@ -1200,8 +921,6 @@ function refresh_carryover_notification(int $userId): void
 
 }
 
-
-
 /*
 
 |--------------------------------------------------------------------------
@@ -1211,16 +930,9 @@ function refresh_carryover_notification(int $userId): void
 |--------------------------------------------------------------------------
 
 */
-
-
-
 $method = $_SERVER['REQUEST_METHOD'];
 
-
-
 if ($method === 'GET') {
-
-
 
     /*
 
@@ -1232,8 +944,6 @@ if ($method === 'GET') {
 
     */
 
-
-
     if (isset($_GET['requests'])) {
 
 
@@ -1243,8 +953,6 @@ if ($method === 'GET') {
             json_error('Geen toegang.', 403);
 
         }
-
-
 
         $stmt = db()->query(
 
@@ -1264,21 +972,15 @@ if ($method === 'GET') {
 
         );
 
-
-
         echo json_encode([
 
             'requests' => $stmt->fetchAll()
 
         ], JSON_UNESCAPED_UNICODE);
 
-
-
         exit;
 
     }
-
-
 
     /*
 
@@ -1290,8 +992,6 @@ if ($method === 'GET') {
 
     */
 
-
-
     if (isset($_GET['notifications'])) {
 
 
@@ -1301,8 +1001,6 @@ if ($method === 'GET') {
             (int)$user['id']
 
         );
-
-
 
         $notificationStmt = db()->prepare(
 
@@ -1328,38 +1026,23 @@ if ($method === 'GET') {
 
         );
 
-
-
         $notificationStmt->execute([
 
             $user['id']
 
         ]);
 
-
-
         $notifications = $notificationStmt->fetchAll();
-
-
-
         $unreadCount = 0;
 
-
-
         foreach ($notifications as $notification) {
-
-
 
             if ($notification['read_at'] === null) {
 
                 $unreadCount++;
 
             }
-
         }
-
-
-
         echo json_encode([
 
             'notifications' => $notifications,
@@ -1368,30 +1051,17 @@ if ($method === 'GET') {
 
         ], JSON_UNESCAPED_UNICODE);
 
-
-
         exit;
 
     }
-
-
-
     /*
-
     |--------------------------------------------------------------------------
 
     | Jaarsaldo ophalen
 
     |--------------------------------------------------------------------------
-
     */
-
-
-
     if (isset($_GET['balance_year'])) {
-
-
-
         $year = filter_var(
 
             $_GET['balance_year'],
@@ -1400,15 +1070,11 @@ if ($method === 'GET') {
 
         );
 
-
-
         if ($year === false || $year < 2000 || $year > 2200) {
 
             json_error('Ongeldig kalenderjaar.');
 
         }
-
-
 
         $balance = calculate_employee_balance(
 
@@ -1420,34 +1086,20 @@ if ($method === 'GET') {
 
         );
 
-
-
         echo json_encode([
 
             'year' => $year,
-
             'annual_allowance' => $balance['annual_allowance'],
-
             'credit_hours' => $balance['credit_hours'],
-
             'carryover_hours' => $balance['carryover_hours'],
-
             'excess_hours' => $balance['excess_hours'],
-
             'excess_used' => $balance['excess_used'],
-
             'excess_remaining' => $balance['excess_remaining'],
-
             'total_available' => $balance['total_available'],
-
             'used' => $balance['used'],
-
             'payout_hours' => $balance['payout_hours'],
-
             'remaining' => $balance['remaining'],
-
             'hours_per_day' => $balance['hours_per_day'],
-
             'available_days' => round(
 
                 $balance['total_available'] / $balance['hours_per_day'],
@@ -1461,7 +1113,6 @@ if ($method === 'GET') {
                 $balance['used'] / $balance['hours_per_day'],
 
                 2
-
             ),
 
             'remaining_days' => round(
@@ -1469,18 +1120,12 @@ if ($method === 'GET') {
                 $balance['remaining'] / $balance['hours_per_day'],
 
                 2
-
             )
 
         ], JSON_UNESCAPED_UNICODE);
 
-
-
         exit;
-
     }
-
-
 
     /*
 
@@ -1491,9 +1136,6 @@ if ($method === 'GET') {
     |--------------------------------------------------------------------------
 
     */
-
-
-
     if (isset($_GET['payouts_year'])) {
 
 
@@ -1505,37 +1147,22 @@ if ($method === 'GET') {
             FILTER_VALIDATE_INT
 
         );
-
-
-
         if ($year === false || $year < 2000 || $year > 2200) {
 
             json_error('Ongeldig kalenderjaar.');
 
         }
-
-
-
         $yearStart = $year . '-01-01';
 
         $nextYearStart = ($year + 1) . '-01-01';
-
-
-
         $sql = 'SELECT
 
                     p.id,
-
                     p.user_id,
-
                     p.payout_date,
-
                     p.hours,
-
                     p.note,
-
                     u.name
-
                 FROM leave_payouts p
 
                 JOIN users u ON u.id = p.user_id
@@ -1544,12 +1171,7 @@ if ($method === 'GET') {
 
                   AND p.payout_date < ?';
 
-
-
         $params = [$yearStart, $nextYearStart];
-
-
-
         if ($user['role'] !== 'admin') {
 
             $sql .= ' AND p.user_id = ?';
@@ -1564,33 +1186,19 @@ if ($method === 'GET') {
 
         }
 
-
-
         $sql .= ' ORDER BY p.payout_date DESC, p.id DESC';
-
-
-
         $stmt = db()->prepare($sql);
 
         $stmt->execute($params);
-
-
-
         echo json_encode(
 
             $stmt->fetchAll(),
 
             JSON_UNESCAPED_UNICODE
-
         );
-
-
-
         exit;
 
     }
-
-
 
     /*
 
@@ -1602,48 +1210,27 @@ if ($method === 'GET') {
 
     */
 
-
-
     $start = (string)($_GET['start'] ?? date('Y-m-01'));
-
     $end = (string)($_GET['end'] ?? date('Y-m-t'));
-
-
-
     if (!valid_date($start) || !valid_date($end)) {
 
         json_error('Ongeldige kalenderdatums.');
 
     }
 
-
-
     $isAdmin = $user['role'] === 'admin';
-
-
-
     $sql = 'SELECT
 
                 l.id,
-
                 l.user_id,
-
                 l.start_date,
-
                 l.end_date,
-
                 l.start_time,
-
                 l.end_time,
-
                 l.hours,
-
                 l.calculation_mode,
-
                 l.booking_type,
-
                 l.note,
-
                 u.name
 
             FROM leave_entries l
@@ -1651,12 +1238,8 @@ if ($method === 'GET') {
             JOIN users u ON u.id = l.user_id
 
             WHERE l.start_date <= ? AND l.end_date >= ?';
-
-
-
-    $params = [$end, $start];
-
-
+   
+   $params = [$end, $start];
 
     if (!$isAdmin) {
 
@@ -1666,18 +1249,9 @@ if ($method === 'GET') {
 
     }
 
-
-
     $stmt = db()->prepare($sql);
-
     $stmt->execute($params);
-
-
-
     $events = [];
-
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -1687,27 +1261,12 @@ if ($method === 'GET') {
     |--------------------------------------------------------------------------
 
     */
-
-
-
     foreach ($stmt->fetchAll() as $r) {
-
-
-
         $bookingType = $r['booking_type'];
-
-
-
         $prefix = $isAdmin ? $r['name'] . ' — ' : '';
 
         $noteText = $r['note'] ? ' · ' . $r['note'] : '';
-
-
-
         switch ($bookingType) {
-
-
-
             case 'sick':
 
                 $title = $prefix . 'Ziek' . $noteText;
@@ -1717,8 +1276,6 @@ if ($method === 'GET') {
                 $borderColor = '#000000';
 
                 break;
-
-
 
             case 'doctor':
 
@@ -1730,8 +1287,6 @@ if ($method === 'GET') {
 
                 break;
 
-
-
             case 'dentist':
 
                 $title = $prefix . 'Tandartsafspraak' . $noteText;
@@ -1742,8 +1297,6 @@ if ($method === 'GET') {
 
                 break;
 
-
-
             case 'specialist':
 
                 $title = $prefix . 'Specialistafspraak' . $noteText;
@@ -1753,8 +1306,6 @@ if ($method === 'GET') {
                 $borderColor = '#6d28d9';
 
                 break;
-
-
 
             case 'leave':
 
@@ -1780,11 +1331,7 @@ if ($method === 'GET') {
 
         }
 
-
-
         $classNames = [];
-
-
 
         if ($bookingType === 'sick') {
 
@@ -1803,8 +1350,6 @@ if ($method === 'GET') {
             $classNames[] = 'specialist-event';
 
         }
-
-
 
         $events[] = [
 
@@ -1829,7 +1374,6 @@ if ($method === 'GET') {
             'textColor' => '#ffffff',
 
             'classNames' => $classNames,
-
 
 
             'extendedProps' => [
@@ -1858,8 +1402,6 @@ if ($method === 'GET') {
 
     }
 
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -1869,8 +1411,6 @@ if ($method === 'GET') {
     |--------------------------------------------------------------------------
 
     */
-
-
 
     $requestSql = 'SELECT
 
@@ -1889,10 +1429,7 @@ if ($method === 'GET') {
                      AND r.end_date >= ?';
 
 
-
     $requestParams = ['pending', $end, $start];
-
-
 
     if (!$isAdmin) {
 
@@ -1902,34 +1439,23 @@ if ($method === 'GET') {
 
     }
 
-
-
     $requestSql .= ' ORDER BY r.start_date ASC';
-
-
 
     $requestStmt = db()->prepare($requestSql);
 
     $requestStmt->execute($requestParams);
 
-
-
     foreach ($requestStmt->fetchAll() as $r) {
 
 
-
         $bookingType = $r['booking_type'];
-
-
 
         $prefix = $isAdmin ? $r['name'] . ' — ' : '';
 
         $noteText = $r['note'] ? ' · ' . $r['note'] : '';
 
 
-
         switch ($bookingType) {
-
 
 
             case 'doctor':
@@ -1943,7 +1469,6 @@ if ($method === 'GET') {
                 break;
 
 
-
             case 'dentist':
 
                 $title = $prefix . 'Tandartsafspraak' . $noteText;
@@ -1955,7 +1480,6 @@ if ($method === 'GET') {
                 break;
 
 
-
             case 'specialist':
 
                 $title = $prefix . 'Specialistafspraak' . $noteText;
@@ -1965,7 +1489,6 @@ if ($method === 'GET') {
                 $borderColor = '#7c3aed';
 
                 break;
-
 
 
             case 'leave':
@@ -1985,7 +1508,6 @@ if ($method === 'GET') {
                 break;
 
         }
-
 
 
         $events[] = [
@@ -2013,7 +1535,6 @@ if ($method === 'GET') {
             'classNames' => ['pending-request-event'],
 
             'editable' => false,
-
 
 
             'extendedProps' => [
@@ -2046,8 +1567,6 @@ if ($method === 'GET') {
 
     }
 
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -2057,8 +1576,6 @@ if ($method === 'GET') {
     |--------------------------------------------------------------------------
 
     */
-
-
 
     $creditSql = 'SELECT
 
@@ -2081,9 +1598,7 @@ if ($method === 'GET') {
                   WHERE t.work_date >= ? AND t.work_date <= ?';
 
 
-
     $creditParams = [$start, $end];
-
 
 
     if (!$isAdmin) {
@@ -2095,26 +1610,19 @@ if ($method === 'GET') {
     }
 
 
-
     $creditStmt = db()->prepare($creditSql);
 
     $creditStmt->execute($creditParams);
 
 
-
     foreach ($creditStmt->fetchAll() as $r) {
-
 
 
         $creditHours = (int)$r['minutes'] / 60;
 
-
-
         $events[] = [
 
             'id' => 'credit-' . $r['id'],
-
-
 
             'title' =>
 
@@ -2133,7 +1641,6 @@ if ($method === 'GET') {
             'start' => $r['work_date'],
 
 
-
             'end' => (new DateTimeImmutable($r['work_date']))
 
                 ->modify('+1 day')
@@ -2141,10 +1648,7 @@ if ($method === 'GET') {
                 ->format('Y-m-d'),
 
 
-
             'allDay' => true,
-
-
 
             'backgroundColor' => '#26965b',
 
@@ -2152,11 +1656,7 @@ if ($method === 'GET') {
 
             'textColor' => '#ffffff',
 
-
-
             'classNames' => ['time-credit-event'],
-
-
 
             'extendedProps' => [
 
@@ -2176,8 +1676,6 @@ if ($method === 'GET') {
 
     }
 
-
-
     /*
 
     |--------------------------------------------------------------------------
@@ -2187,8 +1685,6 @@ if ($method === 'GET') {
     |--------------------------------------------------------------------------
 
     */
-
-
 
     foreach (
 
@@ -2203,9 +1699,7 @@ if ($method === 'GET') {
     ) {
 
 
-
         if ($date >= $start && $date <= $end) {
-
 
 
             $events[] = [
@@ -2233,7 +1727,6 @@ if ($method === 'GET') {
     }
 
 
-
     /*
 
     |--------------------------------------------------------------------------
@@ -2244,8 +1737,6 @@ if ($method === 'GET') {
 
     */
 
-
-
     $bridgeDays = mandatory_bridge_days(
 
         (int)substr($start, 0, 4),
@@ -2255,9 +1746,7 @@ if ($method === 'GET') {
     );
 
 
-
     if ($isAdmin) {
-
 
 
         $employeeStmt = db()->query(
@@ -2267,14 +1756,10 @@ if ($method === 'GET') {
         );
 
 
-
         $calendarEmployees = $employeeStmt->fetchAll();
 
 
-
     } else {
-
-
 
         $calendarEmployees = [[
 
@@ -2287,7 +1772,6 @@ if ($method === 'GET') {
     }
 
 
-
     foreach ($bridgeDays as $date => $name) {
 
 
@@ -2297,7 +1781,6 @@ if ($method === 'GET') {
             continue;
 
         }
-
 
 
         foreach ($calendarEmployees as $employee) {
@@ -2332,8 +1815,6 @@ if ($method === 'GET') {
 
                 'allDay' => true,
 
-
-
                 'backgroundColor' => '#7c3aed',
 
                 'borderColor' => '#6d28d9',
@@ -2341,12 +1822,9 @@ if ($method === 'GET') {
                 'textColor' => '#ffffff',
 
 
-
                 'classNames' => ['mandatory-bridge-event'],
 
                 'editable' => false,
-
-
 
                 'extendedProps' => [
 
@@ -2364,14 +1842,11 @@ if ($method === 'GET') {
 
     }
 
-
-
     echo json_encode($events, JSON_UNESCAPED_UNICODE);
 
     exit;
 
 }
-
 
 
 /*
@@ -2384,14 +1859,11 @@ if ($method === 'GET') {
 
 */
 
-
-
 if ($method !== 'POST') {
 
     json_error('Methode niet toegestaan.', 405);
 
 }
-
 
 
 /*
@@ -2405,13 +1877,11 @@ if ($method !== 'POST') {
 $input = json_decode(file_get_contents('php://input'), true);
 
 
-
 if (!is_array($input)) {
 
     $input = $_POST;
 
 }
-
 
 
 if (!hash_equals(
@@ -2427,9 +1897,7 @@ if (!hash_equals(
 }
 
 
-
 $action = (string)($input['action'] ?? '');
-
 
 
 /*
@@ -2441,7 +1909,6 @@ $action = (string)($input['action'] ?? '');
 |--------------------------------------------------------------------------
 
 */
-
 
 
 if ($action === 'delete_request') {
@@ -2463,7 +1930,6 @@ if ($action === 'delete_request') {
     }
 
 
-
     $requestId = (int)($input['request_id'] ?? 0);
 
 
@@ -2473,7 +1939,6 @@ if ($action === 'delete_request') {
         json_error('Ongeldige aanvraag.');
 
     }
-
 
 
     /*
@@ -2496,8 +1961,6 @@ if ($action === 'delete_request') {
 
     );
 
-
-
     $stmt->execute([
 
         $requestId,
@@ -2505,8 +1968,6 @@ if ($action === 'delete_request') {
         $user['id']
 
     ]);
-
-
 
     if ($stmt->rowCount() === 0) {
 
@@ -2520,8 +1981,6 @@ if ($action === 'delete_request') {
 
     }
 
-
-
     echo json_encode([
 
         'ok' => true,
@@ -2530,12 +1989,9 @@ if ($action === 'delete_request') {
 
     ], JSON_UNESCAPED_UNICODE);
 
-
-
     exit;
 
 }
-
 
 
 /*
@@ -2549,7 +2005,6 @@ if ($action === 'delete_request') {
 */
 
 
-
 if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
 
@@ -2559,8 +2014,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
         json_error('Alleen een admin kan aanvragen beoordelen.', 403);
 
     }
-
-
 
     /*
 
@@ -2572,27 +2025,19 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
     $requestId = (int)($input['request_id'] ?? $input['id'] ?? 0);
 
-
-
     if ($requestId <= 0) {
 
         json_error('Ongeldige aanvraag.');
 
     }
 
-
-
     $pdo = db();
-
-
 
     try {
 
 
 
         $pdo->beginTransaction();
-
-
 
         $stmt = $pdo->prepare(
 
@@ -2607,11 +2052,9 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
         );
 
 
-
         $stmt->execute([$requestId]);
 
         $request = $stmt->fetch();
-
 
 
         if (!$request) {
@@ -2619,7 +2062,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
             throw new RuntimeException('Aanvraag niet gevonden.');
 
         }
-
 
 
         if ($request['status'] !== 'pending') {
@@ -2633,13 +2075,9 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
         }
 
 
-
         $employeeId = (int)$request['user_id'];
 
-
-
         if ($action === 'approve_request') {
-
 
 
             $insert = $pdo->prepare(
@@ -2669,7 +2107,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
             );
 
 
-
             $insert->execute([
 
                 $employeeId,
@@ -2692,11 +2129,7 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
             ]);
 
-
-
             $entryId = (int)$pdo->lastInsertId();
-
-
 
             $update = $pdo->prepare(
 
@@ -2714,8 +2147,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
             );
 
-
-
             $update->execute([
 
                 $entryId,
@@ -2726,8 +2157,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
             ]);
 
-
-
             $title = 'Aanvraag goedgekeurd';
 
             $message = 'Je aanvraag voor ' .
@@ -2736,11 +2165,7 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
                 ' is goedgekeurd.';
 
-
-
         } else {
-
-
 
             $update = $pdo->prepare(
 
@@ -2756,8 +2181,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
             );
 
-
-
             $update->execute([
 
                 $user['id'],
@@ -2765,8 +2188,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
                 $requestId
 
             ]);
-
-
 
             $title = 'Aanvraag afgewezen';
 
@@ -2777,8 +2198,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
                 ' is afgewezen.';
 
         }
-
-
 
         $notification = $pdo->prepare(
 
@@ -2806,8 +2225,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
         );
 
-
-
         $notification->execute([
 
             $employeeId,
@@ -2822,8 +2239,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
         ]);
 
-
-
         $pdo->commit();
 
 
@@ -2833,8 +2248,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
             refresh_carryover_notification($employeeId);
 
         }
-
-
 
         echo json_encode([
 
@@ -2851,9 +2264,7 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
         ], JSON_UNESCAPED_UNICODE);
 
 
-
         exit;
-
 
 
     } catch (Throwable $e) {
@@ -2866,15 +2277,11 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 
         }
 
-
-
         json_error($e->getMessage());
 
     }
 
 }
-
-
 
 /*
 
@@ -2885,8 +2292,6 @@ if (in_array($action, ['approve_request', 'reject_request'], true)) {
 |--------------------------------------------------------------------------
 
 */
-
-
 
 if ($action === 'mark_notifications_read') {
 
@@ -2904,23 +2309,17 @@ if ($action === 'mark_notifications_read') {
 
     );
 
-
-
     $stmt->execute([
 
         $user['id']
 
     ]);
 
-
-
     echo json_encode([
 
         'ok' => true
 
     ], JSON_UNESCAPED_UNICODE);
-
-
 
     exit;
 
@@ -2938,19 +2337,11 @@ if ($action === 'mark_notifications_read') {
 
 */
 
-
-
 if ($action === 'save_payout') {
-
-
 
     $targetUser = get_target_user($user, $input);
 
-
-
     $payoutDate = (string)($input['payout_date'] ?? '');
-
-
 
     $hours = filter_var(
 
@@ -2960,11 +2351,7 @@ if ($action === 'save_payout') {
 
     );
 
-
-
     $note = trim((string)($input['note'] ?? ''));
-
-
 
     if (!valid_date($payoutDate)) {
 
@@ -2973,18 +2360,13 @@ if ($action === 'save_payout') {
     }
 
 
-
     if ($hours === false || $hours <= 0 || $hours > 1000) {
 
         json_error('Vul een geldig aantal uit te betalen uren in.');
 
     }
 
-
-
     $hours = round((float)$hours, 2);
-
-
 
     if ($hours <= 0) {
 
@@ -2992,23 +2374,15 @@ if ($action === 'save_payout') {
 
     }
 
-
-
     $targetStmt = db()->prepare(
 
         'SELECT * FROM users WHERE id = ?'
 
     );
 
-
-
     $targetStmt->execute([$targetUser]);
 
-
-
     $target = $targetStmt->fetch();
-
-
 
     if (!$target) {
 
@@ -3016,11 +2390,7 @@ if ($action === 'save_payout') {
 
     }
 
-
-
     $payoutYear = (int)substr($payoutDate, 0, 4);
-
-
 
     $balance = calculate_employee_balance(
 
@@ -3032,19 +2402,13 @@ if ($action === 'save_payout') {
 
     );
 
-
-
     $maximumPayout = $balance['remaining'];
-
-
 
     if ($payoutDate < $payoutYear . '-04-01') {
 
         $maximumPayout += $balance['excess_remaining'];
 
     }
-
-
 
     if ($hours > $maximumPayout) {
 
@@ -3061,8 +2425,6 @@ if ($action === 'save_payout') {
         );
 
     }
-
-
 
     db()->prepare(
 
@@ -3084,11 +2446,7 @@ if ($action === 'save_payout') {
 
     ]);
 
-
-
     refresh_carryover_notification($targetUser);
-
-
 
     echo json_encode([
 
@@ -3098,13 +2456,9 @@ if ($action === 'save_payout') {
 
     ], JSON_UNESCAPED_UNICODE);
 
-
-
     exit;
 
 }
-
-
 
 /*
 
@@ -3116,15 +2470,9 @@ if ($action === 'save_payout') {
 
 */
 
-
-
 if ($action === 'delete_payout') {
 
-
-
     $id = (int)($input['id'] ?? 0);
-
-
 
     if ($id <= 0) {
 
@@ -3132,23 +2480,15 @@ if ($action === 'delete_payout') {
 
     }
 
-
-
     $stmt = db()->prepare(
 
         'SELECT * FROM leave_payouts WHERE id = ?'
 
     );
 
-
-
     $stmt->execute([$id]);
 
-
-
     $existing = $stmt->fetch();
-
-
 
     if (!$existing) {
 
@@ -3156,19 +2496,12 @@ if ($action === 'delete_payout') {
 
     }
 
-
-
     check_entry_access($user, $existing);
-
-
-
     db()->prepare(
 
         'DELETE FROM leave_payouts WHERE id = ?'
 
     )->execute([$id]);
-
-
 
     refresh_carryover_notification(
 
@@ -3176,17 +2509,11 @@ if ($action === 'delete_payout') {
 
     );
 
-
-
     echo json_encode(['ok' => true]);
-
-
 
     exit;
 
 }
-
-
 
 /*
 
@@ -3198,15 +2525,9 @@ if ($action === 'delete_payout') {
 
 */
 
-
-
 if ($action === 'save_credit') {
 
-
-
     $id = (string)($input['id'] ?? '');
-
-
 
     if (str_starts_with($id, 'credit-')) {
 
@@ -3214,19 +2535,10 @@ if ($action === 'save_credit') {
 
     }
 
-
-
     $id = (int)$id;
 
-
-
     $targetUser = get_target_user($user, $input);
-
-
-
     $workDate = (string)($input['work_date'] ?? '');
-
-
 
     $minutes = filter_var(
 
@@ -3237,18 +2549,13 @@ if ($action === 'save_credit') {
     );
 
 
-
     $note = trim((string)($input['note'] ?? ''));
-
-
 
     if (!valid_date($workDate)) {
 
         json_error('Kies een geldige datum.');
 
     }
-
-
 
     if ($minutes === false || $minutes < 15) {
 
@@ -3257,14 +2564,11 @@ if ($action === 'save_credit') {
     }
 
 
-
     if ($minutes > 2147483647) {
 
         json_error('Het ingevoerde aantal minuten is te groot.');
 
     }
-
-
 
     $targetStmt = db()->prepare(
 
@@ -3272,11 +2576,7 @@ if ($action === 'save_credit') {
 
     );
 
-
-
     $targetStmt->execute([$targetUser]);
-
-
 
     if (!$targetStmt->fetch()) {
 
@@ -3284,15 +2584,9 @@ if ($action === 'save_credit') {
 
     }
 
-
-
     $oldTargetUser = null;
 
-
-
     if ($id > 0) {
-
-
 
         $existingStmt = db()->prepare(
 
@@ -3300,13 +2594,9 @@ if ($action === 'save_credit') {
 
         );
 
-
-
         $existingStmt->execute([$id]);
 
         $existing = $existingStmt->fetch();
-
-
 
         if (!$existing) {
 
@@ -3315,22 +2605,16 @@ if ($action === 'save_credit') {
         }
 
 
-
         check_entry_access($user, $existing);
 
 
-
         $oldTargetUser = (int)$existing['user_id'];
-
-
 
         if ($user['role'] !== 'admin') {
 
             $targetUser = (int)$user['id'];
 
         }
-
-
 
         db()->prepare(
 
@@ -3355,9 +2639,7 @@ if ($action === 'save_credit') {
         ]);
 
 
-
     } else {
-
 
 
         db()->prepare(
@@ -3382,19 +2664,12 @@ if ($action === 'save_credit') {
 
     }
 
-
-
     if ($oldTargetUser !== null && $oldTargetUser !== $targetUser) {
 
         refresh_carryover_notification($oldTargetUser);
 
     }
-
-
-
     refresh_carryover_notification($targetUser);
-
-
 
     echo json_encode([
 
@@ -3406,13 +2681,9 @@ if ($action === 'save_credit') {
 
     ]);
 
-
-
     exit;
 
 }
-
-
 
 /*
 
@@ -3423,16 +2694,9 @@ if ($action === 'save_credit') {
 |--------------------------------------------------------------------------
 
 */
-
-
-
 if ($action === 'delete_credit') {
 
-
-
     $id = (string)($input['id'] ?? '');
-
-
 
     if (str_starts_with($id, 'credit-')) {
 
@@ -3440,11 +2704,7 @@ if ($action === 'delete_credit') {
 
     }
 
-
-
     $id = (int)$id;
-
-
 
     $stmt = db()->prepare(
 
@@ -3452,15 +2712,9 @@ if ($action === 'delete_credit') {
 
     );
 
-
-
     $stmt->execute([$id]);
 
-
-
     $existing = $stmt->fetch();
-
-
 
     if (!$existing) {
 
@@ -3468,11 +2722,7 @@ if ($action === 'delete_credit') {
 
     }
 
-
-
     check_entry_access($user, $existing);
-
-
 
     db()->prepare(
 
@@ -3480,23 +2730,17 @@ if ($action === 'delete_credit') {
 
     )->execute([$id]);
 
-
-
     refresh_carryover_notification(
 
         (int)$existing['user_id']
 
     );
 
-
-
     echo json_encode(['ok' => true]);
 
     exit;
 
 }
-
-
 
 /*
 
@@ -3508,41 +2752,25 @@ if ($action === 'delete_credit') {
 
 */
 
-
-
 if ($action === 'save') {
-
-
 
     $id = (int)($input['id'] ?? 0);
 
-
-
     $targetUser = get_target_user($user, $input);
-
-
 
     $start = (string)($input['start_date'] ?? '');
 
     $end = (string)($input['end_date'] ?? '');
 
-
-
     $startTime = (string)($input['start_time'] ?? '');
 
     $endTime = (string)($input['end_time'] ?? '');
-
-
 
     $mode = (string)($input['calculation_mode'] ?? 'automatic');
 
     $bookingType = (string)($input['booking_type'] ?? 'leave');
 
-
-
     $note = trim((string)($input['note'] ?? ''));
-
-
 
     $allowedTypes = [
 
@@ -3558,19 +2786,13 @@ if ($action === 'save') {
 
     ];
 
-
-
     if (!in_array($bookingType, $allowedTypes, true)) {
 
         json_error('Ongeldig type boeking.');
 
     }
 
-
-
     $isSick = $bookingType === 'sick';
-
-
 
     $isAppointment = in_array(
 
@@ -3582,11 +2804,7 @@ if ($action === 'save') {
 
     );
 
-
-
     $isNonLeave = $isSick || $isAppointment;
-
-
 
     if (!valid_date($start) || !valid_date($end)) {
 
@@ -3594,14 +2812,11 @@ if ($action === 'save') {
 
     }
 
-
-
     if ($end < $start) {
 
         json_error('De einddatum mag niet vóór de begindatum liggen.');
 
     }
-
     /*
     |--------------------------------------------------------------------------
     | Weekend controleren: geen enkele boeking of aanvraag op zaterdag/zondag
@@ -3619,8 +2834,6 @@ if ($action === 'save') {
         }
     }
 
-
-
     if (
 
         !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $startTime) ||
@@ -3633,23 +2846,17 @@ if ($action === 'save') {
 
     }
 
-
-
     if ($start === $end && $endTime <= $startTime) {
 
         json_error('De eindtijd moet later zijn dan de begintijd.');
 
     }
 
-
-
     if (!in_array($mode, ['automatic', 'manual'], true)) {
 
         json_error('Ongeldige berekeningsmethode.');
 
     }
-
-
 
     /*
 
@@ -3660,8 +2867,6 @@ if ($action === 'save') {
     |--------------------------------------------------------------------------
 
     */
-
-
 
     if (
 
@@ -3679,29 +2884,21 @@ if ($action === 'save') {
 
     }
 
-
-
     $stmt = db()->prepare(
 
         'SELECT * FROM users WHERE id = ?'
 
     );
 
-
-
     $stmt->execute([$targetUser]);
 
     $target = $stmt->fetch();
-
-
 
     if (!$target) {
 
         json_error('Medewerker niet gevonden.');
 
     }
-
-
 
     /*
 
@@ -3713,25 +2910,15 @@ if ($action === 'save') {
 
     */
 
-
-
     if ($isNonLeave) {
-
-
 
         $hours = 0.0;
 
         $mode = 'automatic';
 
-
-
     } elseif ($mode === 'automatic') {
 
-
-
         try {
-
-
 
             $hours = hours_for_range(
 
@@ -3755,15 +2942,9 @@ if ($action === 'save') {
 
             json_error($e->getMessage());
 
-
-
         }
 
-
-
     } else {
-
-
 
         $hours = filter_var(
 
@@ -3772,8 +2953,6 @@ if ($action === 'save') {
             FILTER_VALIDATE_FLOAT
 
         );
-
-
 
         if ($hours === false || $hours <= 0 || $hours > 1000) {
 
@@ -3785,11 +2964,7 @@ if ($action === 'save') {
 
         }
 
-
-
         $hours = round((float)$hours, 2);
-
-
 
         $holidays = dutch_holidays(
 
@@ -3799,23 +2974,15 @@ if ($action === 'save') {
 
         );
 
-
-
         $from = new DateTimeImmutable($start);
 
         $to = new DateTimeImmutable($end);
 
         $holidayNames = [];
 
-
-
         for ($d = $from; $d <= $to; $d = $d->modify('+1 day')) {
 
-
-
             $date = $d->format('Y-m-d');
-
-
 
             if (isset($holidays[$date])) {
 
@@ -3824,8 +2991,6 @@ if ($action === 'save') {
             }
 
         }
-
-
 
         if (!empty($holidayNames)) {
 
@@ -3843,15 +3008,11 @@ if ($action === 'save') {
 
     }
 
-
-
     if ($bookingType === 'leave' && $hours <= 0) {
 
         json_error('Deze verlofboeking bevat geen verlofuren.');
 
     }
-
-
 
     /*
 
@@ -3862,8 +3023,6 @@ if ($action === 'save') {
     |--------------------------------------------------------------------------
 
     */
-
-
 
     if (
 
@@ -3884,8 +3043,6 @@ if ($action === 'save') {
         ], true)
 
     ) {
-
-
 
         $stmt = db()->prepare(
 
@@ -3914,7 +3071,6 @@ if ($action === 'save') {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
 
         );
-
 
 
         $stmt->execute([
@@ -3967,14 +3123,11 @@ if ($action === 'save') {
     $oldTargetUser = null;
     if ($id > 0) {
 
-
-
         $stmt = db()->prepare(
 
             'SELECT * FROM leave_entries WHERE id = ?'
 
         );
-
 
 
         $stmt->execute([$id]);
@@ -3989,23 +3142,15 @@ if ($action === 'save') {
 
         }
 
-
-
         check_entry_access($user, $existing);
 
-
-
         $oldTargetUser = (int)$existing['user_id'];
-
-
 
         if ($user['role'] !== 'admin') {
 
             $targetUser = (int)$user['id'];
 
         }
-
-
 
         db()->prepare(
 
@@ -4149,7 +3294,6 @@ if ($action === 'save') {
 }
 
 /*
-
 |--------------------------------------------------------------------------
 
 | Verlof, ziek, dokter, tandarts of specialist verwijderen
